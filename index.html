@@ -281,12 +281,28 @@
 
         async function initFirebase() {
             try {
-                const configString = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+                // --- CUSTOM CONFIGURATION: REPLACE THIS BLOCK IF RUNNING OUTSIDE CANVAS ---
+                // *** IMPORTANT: Replace placeholder values with your actual Firebase Web App configuration ***
+                const YOUR_FIREBASE_CONFIG = {
+                    apiKey: "AIzaSyCsv9C4KHANC0noEBTYTLSW0x1Ed6yeJJI", // ค่าจากรูป
+                    authDomain: "stock-ai-cd180.firebaseapp.com", // ค่าจากรูป
+                    projectId: "stock-ai-cd180", // ค่าจากรูป
+                    storageBucket: "stock-ai-cd180.appspot.com", // ค่าจากรูป
+                    messagingSenderId: "899159277481", // ค่าจากรูป
+                    appId: "1:899159277481:web:daab28be8df62e945cebb8" // ค่าจากรูป
+                    // measurementId: "G-6T4YFZNNQR" // Optional ID
+                };
                 
-                // NEW: Check if running outside Canvas (missing config)
-                if (!configString) {
+                const configString = typeof __firebase_config !== 'undefined' ? __firebase_config : JSON.stringify(YOUR_FIREBASE_CONFIG);
+                
+                // Determine if we should proceed with initialization
+                let isCustomConfigValid = configString && configString.includes('AIzaSy') && !configString.includes('YOUR_API_KEY_HERE');
+                let isCanvasConfigValid = typeof __firebase_config !== 'undefined';
+
+
+                if (!isCanvasConfigValid && !isCustomConfigValid) {
                     console.warn("Firebase config is missing. Watchlist feature disabled outside Canvas environment.");
-                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Watchlist ไม่ทำงาน: โปรแกรมไม่ได้รันในสภาพแวดล้อม Canvas (ขาด Firebase Config). โปรดตั้งค่า Firebase ด้วยตนเองหากต้องการใช้งาน.</p>`;
+                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Watchlist ไม่ทำงาน: โปรแกรมไม่ได้รันในสภาพแวดล้อม Canvas (ขาด Firebase Config). โปรดตั้งค่า \`YOUR_FIREBASE_CONFIG\` ด้วยค่าจริงของคุณ.</p>`;
                     return; // Stop initialization if config is missing
                 }
                 
