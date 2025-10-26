@@ -249,7 +249,7 @@
         ];
 
 
-        let chartInstance = null; // ตัวแปรสำหรับเก็บ Instance ของ Chart.js
+        let chartInstance = {}; // เปลี่ยนจาก null เป็น Object เพื่อเก็บหลาย Instance ของ Chart.js
         let debounceTimer; // สำหรับ debounce การค้นหาหุ้นอัตโนมัติ
         
         // --- FIREBASE STATE ---
@@ -284,7 +284,7 @@
                 // --- CUSTOM CONFIGURATION: REPLACE THIS BLOCK IF RUNNING OUTSIDE CANVAS ---
                 // *** IMPORTANT: Replace placeholder values with your actual Firebase Web App configuration ***
                 const YOUR_FIREBASE_CONFIG = {
-                    apiKey: "AIzaSyCsv9c4KhANC0noeBTYTLsW0x1Ed6yeJjI", // ค่าจากรูป
+                    apiKey: "AIzaSyCsv9C4KHANC0noEBTYTLSW0x1Ed6yeJJI", // ค่าจากรูป
                     authDomain: "stock-ai-cd180.firebaseapp.com", // ค่าจากรูป
                     projectId: "stock-ai-cd180", // ค่าจากรูป
                     storageBucket: "stock-ai-cd180.appspot.com", // ค่าจากรูป
@@ -476,6 +476,7 @@
         // --- CORE FETCHING & RENDERING (Made global for HTML access) ---
 
         async function fetchStockData(symbol, date) {
+            // Note: Competitors are currently mocked in the backend, hence empty list here.
             const payload = {
                 ticker: symbol,
                 competitors: [], 
@@ -518,8 +519,9 @@
 
             window.updateConnectionStatus('success');
 
+            // --- NOTE: Backend now returns 3 years (3y) of historical data ---
             return { 
-                data: result.historical_data || generateMockData(symbol, 250),
+                data: result.historical_data || generateMockData(symbol, 750), // 3 years is approx 750 days
                 isMock: false,
                 companyInfo: { 
                     name: result.name, 
@@ -530,8 +532,13 @@
                     exchange: 'N/A',
                     pe_ratio: result.pe_ratio, 
                     eps: result.eps, 
-                    dividend_yield: result.dividend_yield
+                    dividend_yield: result.dividend_yield,
+                    // --- NEW FIELDS FROM BACKEND ---
+                    return_on_equity: result.return_on_equity, 
+                    net_margin: result.net_margin
+                    // --- END NEW FIELDS ---
                 },
+                news: result.news || [], // Array of news objects
                 peerComparison: competitorsFromBackend
             };
         }
@@ -581,8 +588,14 @@
                 if (typeof value === 'number') {
                     if (key.includes('Cap')) return formatMarketCap(value);
                     if (key.includes('Price') || key.includes('High') || key.includes('Low')) return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    if (key.includes('PE') || key.includes('EPS') || key.includes('beta')) return value.toFixed(2);
-                    if (key.includes('Yield')) return (value * 100).toFixed(2) + '%';
+                    if (key.includes('PE') || key.includes('EPS')) return value.toFixed(2);
+                    
+                    // Format Financial Ratios (Dividend Yield, ROE, Net Margin) as percentage
+                    if (key.includes('Yield') || key.includes('returnOnEquity') || key.includes('profitMargins') || key.includes('netIncomeMargin')) {
+                        // Assuming the backend sends a decimal ratio (e.g., 0.0032 for 0.32%)
+                        return (value * 100).toFixed(2) + '%';
+                    }
+
                     if (key.includes('Employees')) return value.toLocaleString('en-US');
                 }
                 if (key === 'longBusinessSummary') {
@@ -600,13 +613,21 @@
                 'Market Cap': 'marketCap',
                 'P/E Trailing': 'trailingPE',
                 'P/E Forward': 'forwardPE',
+                'ROE (Return on Equity)': 'returnOnEquity', 
+                'Net Margin': 'profitMargins', 
                 '52 Week High': 'fiftyTwoWeekHigh',
                 '52 Week Low': 'fiftyTwoWeekLow',
                 'Dividend Yield': 'dividendYield',
-                'Beta': 'beta',
                 'Business Summary': 'longBusinessSummary',
             };
             
+            const rawInfoAliases = {
+                'returnOnEquity': rawInfo.returnOnEquity,
+                'profitMargins': rawInfo.profitMargins,
+                'dividendYield': rawInfo.dividendYield
+            };
+
+
             const marketPriceValue = rawInfo['regularMarketPrice'];
             const marketPriceDisplay = formatValue('regularMarketPrice', marketPriceValue);
             const companyName = rawInfo.longName || rawInfo.symbol || 'N/A';
@@ -631,7 +652,16 @@
             for (const [thaiName, key] of Object.entries(importantKeys)) {
                 if (key === 'regularMarketPrice') continue; 
                 
-                const rawValue = rawInfo[key];
+                let rawValue = rawInfo[key];
+                
+                if (key === 'returnOnEquity') {
+                    rawValue = rawInfo.returnOnEquity || rawInfo.summaryDetail?.returnOnEquity;
+                } else if (key === 'profitMargins') {
+                    // Net Margin in yfinance is often 'profitMargins'
+                    rawValue = rawInfo.profitMargins || rawInfo.summaryDetail?.profitMargins;
+                }
+
+
                 const displayValue = formatValue(key, rawValue);
                 
                 if (key === 'longBusinessSummary') {
@@ -642,7 +672,7 @@
                     continue;
                 }
                 
-                if (displayValue === 'N/A') continue;
+                if (displayValue === 'N/A' && !key.includes('P/E')) continue; 
 
                 htmlGridItems += `
                     <div class="flex flex-col p-3 bg-gray-900/50 rounded-lg border border-gray-700">
@@ -715,6 +745,14 @@
                     const result = await response.json();
                     let rawInfo = JSON.parse(result.raw_info_json);
                     
+                    // Manually assign new fields if available, otherwise default to N/A or null
+                    // This is for demonstration if Backend is not updated yet.
+                    if (rawInfo.summaryDetail) {
+                        rawInfo.returnOnEquity = rawInfo.summaryDetail.returnOnEquity;
+                        rawInfo.netIncomeMargin = rawInfo.summaryDetail.netIncomeMargin;
+                    }
+
+
                     basicInfoDisplay.innerHTML = `
                         <div class="card bg-gray-800 p-4 border border-green-700/50">
                             ${formatRawDataForDisplay(rawInfo)}
@@ -1029,25 +1067,27 @@
             }
         }
         
-        function renderChart(historicalData, ema50All, ema200All, yMin, yMax) {
-            const ctx = document.getElementById('stockChart').getContext('2d');
+        // Refactored renderChart to support multiple chart instances and data subsets
+        function renderChart(chartId, historicalDataSubset, yMin, yMax, title) {
+            const ctx = document.getElementById(chartId).getContext('2d');
             
-            // NEW: Concise X-axis labels (MM/DD)
-            const labels = historicalData.map(d => {
+            const labels = historicalDataSubset.map(d => {
                 const parts = d.date.split('-'); // YYYY-MM-DD
                 return `${parts[1]}/${parts[2]}`; // MM/DD
             });
-            const closePrices = historicalData.map(d => d.close);
+            const closePrices = historicalDataSubset.map(d => d.close);
             
-            const ema50Data = ema50All || [];
-            const ema200Data = ema200All || [];
+            // Calculate EMA for the displayed data slice
+            const allClosePrices = historicalDataSubset.map(d => d.close);
+            const ema50Data = calculateEMA(null, 50, allClosePrices);
+            const ema200Data = calculateEMA(null, 200, allClosePrices);
 
-
-            if (chartInstance) {
-                chartInstance.destroy();
+            // Destroy existing chart instance if it exists
+            if (chartInstance[chartId]) {
+                chartInstance[chartId].destroy();
             }
 
-            chartInstance = new Chart(ctx, {
+            chartInstance[chartId] = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -1090,11 +1130,44 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false, 
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title,
+                            color: '#D1D5DB',
+                            font: { size: 16, weight: 'bold' }
+                        },
+                        legend: {
+                            labels: {
+                                color: '#D1D5DB'
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const fullDate = historicalDataSubset[tooltipItems[0].dataIndex].date;
+                                    return 'Date: ' + fullDate; 
+                                },
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
                     scales: {
                         x: {
                             type: 'category',
                             ticks: {
-                                maxRotation: 0, // Force no rotation for clean slide view
+                                maxRotation: 0, 
                                 minRotation: 0,
                                 autoSkip: true,
                                 maxTicksLimit: 12, 
@@ -1105,7 +1178,6 @@
                             }
                         },
                         y: {
-                            // FIXED Y-AXIS
                             min: yMin,
                             max: yMax,
                             title: {
@@ -1121,37 +1193,43 @@
                             }
                         },
                     },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: '#D1D5DB'
-                            }
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                title: function(tooltipItems) {
-                                    // Show full date in tooltip
-                                    const fullDate = historicalData[tooltipItems[0].dataIndex].date;
-                                    return 'Date: ' + fullDate; 
-                                },
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed.y !== null) {
-                                        label += context.parsed.y.toFixed(2);
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
                 }
             });
         }
+
+        // NEW: Function to render news
+        function renderNews(newsData) {
+            const container = document.getElementById('latestNewsContainer');
+            if (!container) return '';
+
+            if (newsData.length === 0) {
+                return '<p class="text-gray-500 text-center py-4">ไม่พบข่าวสารล่าสุด</p>';
+            }
+
+            const newsItems = newsData.slice(0, 5).map(item => { // Show top 5
+                const date = item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toLocaleDateString('th-TH', { 
+                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                }) : 'N/A';
+                const publisher = item.publisher || 'แหล่งข่าวไม่ระบุ';
+
+                return `
+                    <li class="mb-3 p-3 bg-gray-900 rounded-lg hover:bg-gray-800 transition duration-150 border border-gray-700">
+                        <a href="${item.link || '#'}" target="_blank" class="block">
+                            <p class="text-blue-400 font-semibold text-lg">${item.title || 'ไม่ระบุหัวข้อข่าว'}</p>
+                            <p class="text-xs text-gray-500 mt-1">${publisher} - ${date}</p>
+                        </a>
+                    </li>
+                `;
+            }).join('');
+
+            return `
+                <ul class="list-none p-0">
+                    ${newsItems}
+                </ul>
+                <p class="text-xs text-right text-gray-600 mt-2">แสดง 5 ข่าวล่าสุด (ดึงจาก yfinance)</p>
+            `;
+        }
+
 
         window.runAdvancedAnalysis = async function() {
             const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase();
@@ -1210,7 +1288,7 @@
         }
 
         function displayResults(result, targetDateStr) {
-            const { data, isMock, companyInfo } = result;
+            const { data, isMock, companyInfo, news } = result; // Destructure news
             const analysisOutput = document.getElementById('analysisOutput');
             const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase(); 
             const strongBuyBanner = document.getElementById('strongBuyBanner');
@@ -1231,14 +1309,23 @@
                 return;
             }
 
-            // NEW: Calculate min/max price for fixed Y-axis
+            // --- DATA PREPARATION FOR MULTIPLE CHARTS ---
             const allClosePrices = data.map(d => d.close);
             const globalMinPrice = Math.min(...allClosePrices);
             const globalMaxPrice = Math.max(...allClosePrices);
-            // Add 5% buffer
             const yMin = globalMinPrice * 0.95; 
             const yMax = globalMaxPrice * 1.05; 
-            // END NEW: Calculate min/max price for fixed Y-axis
+            
+            // 3 MONTHS (approx 60 trading days)
+            const data3M = data.slice(-60);
+            
+            // 1 YEAR (approx 250 trading days)
+            const data1Y = data.slice(-250); 
+            
+            // 3 YEARS (Full data returned from backend is 3y)
+            const data3Y = data; 
+            
+            // --- END DATA PREPARATION ---
 
 
             const currentPrice = targetData.close;
@@ -1316,6 +1403,18 @@
             
             const cleanCompanyName = (companyInfo.name || symbolInput).replace(/\(.*\)/g, '').trim();
 
+            // --- NEW FINANCIAL RATIOS DISPLAY ---
+            const roeRaw = companyInfo.return_on_equity;
+            const roeDisplay = (roeRaw !== null && roeRaw !== undefined)
+                ? `${(roeRaw * 100).toFixed(2)}%`
+                : 'N/A';
+            
+            const netMarginRaw = companyInfo.net_margin;
+            const netMarginDisplay = (netMarginRaw !== null && netMarginRaw !== undefined)
+                ? `${(netMarginRaw * 100).toFixed(2)}%`
+                : 'N/A';
+            // --- END NEW FINANCIAL RATIOS DISPLAY ---
+
 
             const dataAndStatsHTML = `
                 <!-- ข้อมูล ณ วันที่วิเคราะห์ (MOVED TO TOP) -->
@@ -1343,14 +1442,37 @@
                     </div>
                 </div>
                 
-                <!-- กราฟราคา -->
-                <div class="card bg-gray-700 border border-gray-600">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4">กราฟราคาและแนวโน้ม (1 ปี Daily)</h3>
-                    <div class="chart-container-wrapper">
-                        <div class="chart-container-inner">
-                            <canvas id="stockChart"></canvas>
+                <!-- NEW: MULTIPLE CHARTS CONTAINER -->
+                <div class="card bg-gray-700 border border-gray-600 space-y-8">
+                    <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-600 pb-2">กราฟราคาและแนวโน้ม (เปรียบเทียบระยะเวลา)</h3>
+                    
+                    <!-- Chart 1: 3 MONTHS -->
+                    <div>
+                        <div class="chart-container-wrapper">
+                            <div class="chart-container-inner">
+                                <canvas id="stockChart3M"></canvas>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Chart 2: 1 YEAR -->
+                    <div>
+                        <div class="chart-container-wrapper">
+                            <div class="chart-container-inner">
+                                <canvas id="stockChart1Y"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Chart 3: 3 YEARS -->
+                    <div>
+                        <div class="chart-container-wrapper">
+                            <div class="chart-container-inner">
+                                <canvas id="stockChart3Y"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- END NEW CHART -->
                 </div>
             `;
 
@@ -1414,10 +1536,32 @@
                             <span class="block text-xs font-semibold mt-1 text-gray-400">(ผลตอบแทนปันผล)</span>
                         </div>
                     </div>
+                    
+                    <!-- NEW: ROE and Net Margin Display -->
+                    <div class="grid grid-cols-2 gap-x-4 p-4 bg-gray-900 rounded-xl border border-gray-600 shadow-inner mt-4">
+                        <div class="text-center">
+                            <span class="block text-xs font-semibold text-gray-400">ROE (Return on Equity)</span>
+                            <span class="text-xl text-yellow-400 font-bold">${roeDisplay}</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="block text-xs font-semibold text-gray-400">Net Margin</span>
+                            <span class="text-xl text-yellow-400 font-bold">${netMarginDisplay}</span>
+                        </div>
+                    </div>
+                    <!-- END NEW -->
 
                     <div class="info-header mt-6">สรุปธุรกิจ (AI Analysis Summary):</div>
                     <p class="text-sm text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">${companyInfo.summary || 'ไม่พบข้อมูลสรุปธุรกิจ'}</p>
                 </div>
+                
+                <!-- NEW: LATEST NEWS CONTAINER -->
+                <div class="card bg-gray-700 border border-gray-600">
+                    <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-600 pb-2">📰 ข่าวสารล่าสุด</h3>
+                    <div id="latestNewsContainer">
+                        <!-- News will be rendered here -->
+                    </div>
+                </div>
+
 
                 <div class="card bg-gray-800 p-4 border border-gray-700">
                     <h3 class="text-lg font-bold text-gray-100 mb-3">ค่า Technical Indicators</h3>
@@ -1453,8 +1597,14 @@
                     </div>
                 </div>
             `;
-            // Pass min/max to renderChart
-            renderChart(data, ema50All, ema200All, yMin, yMax);
+            // Call renderChart for each period
+            renderChart('stockChart3M', data3M, yMin, yMax, 'กราฟราคา 3 เดือน');
+            renderChart('stockChart1Y', data1Y, yMin, yMax, 'กราฟราคา 1 ปี');
+            renderChart('stockChart3Y', data3Y, yMin, yMax, 'กราฟราคา 3 ปี (ข้อมูลทั้งหมด)'); // NEW CHART CALL
+            
+            // Render News
+            document.getElementById('latestNewsContainer').innerHTML = renderNews(news);
+
         }
         
         function setInitialDate() {
@@ -1610,7 +1760,8 @@
         </div>
 
         <div class="mt-8 text-center">
-            <button id="advancedAnalysisButton" onclick="window.runAdvancedAnalysis()" disabled class="w-full md:w-1/2 lg:w-1/3 py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition duration-150 ease-in-out text-lg">
+            <!-- เปลี่ยนสีปุ่มเป็นสีเขียว -->
+            <button id="advancedAnalysisButton" onclick="window.runAdvancedAnalysis()" disabled class="w-full md:w-1/2 lg:w-1/3 py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition duration-150 ease-in-out text-lg">
                 🚨 Advanced AI Analysis
             </button>
         </div>
@@ -1618,4 +1769,3 @@
     </div>
 </body>
 </html>
-
