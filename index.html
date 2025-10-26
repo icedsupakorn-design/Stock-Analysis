@@ -3,10 +3,8 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เครื่องมือวิเคราะห์หุ้นอัตโนมัติ (Dark Mode)</title>
-    <!-- โหลด Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- โหลด Chart.js สำหรับทำกราฟ -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <!-- โหลด Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลด Chart.js สำหรับทำกราฟ --><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         body {
@@ -14,7 +12,6 @@
             background-color: #1f2937; /* Dark Background */
             color: #e5e7eb; /* Light Default Text */
             line-height: 1.6;
-            /* เพิ่ม padding-top เพื่อให้ Banner ไม่ทับเนื้อหา */
             padding-top: 60px; 
         }
         .container-wrapper {
@@ -194,79 +191,179 @@
         .status-error {
             background-color: #DC2626; /* Red */
         }
+
+        /* NEW: Styles for scrollable chart container */
+        .chart-container-wrapper {
+            overflow-x: auto; /* Enable horizontal scrolling */
+            width: 100%;
+            padding-bottom: 10px; /* Add some padding for scrollbar */
+        }
+        .chart-container-inner {
+            min-width: 800px; /* Set a minimum width for the chart to ensure it scrolls */
+            width: 100%; /* Adjust to fill wrapper */
+            height: 400px;
+        }
     </style>
-    <script>
-        // *** NEW: กำหนด Cloud Run URL เป็นตัวแปรถาวร ***
-        // Service URL ของคุณ: https://stock-analysis-api-1074266470837.us-central1.run.app
-        const CLOUD_RUN_HOST = "https://stock-analysis-api-1074266470837.us-central1.run.app"; // FIX: ใส่ https:// นำหน้า
-        // *** แก้ไข Endpoint ให้ตรงกับ Backend Python (analyze_stock) ***
+    <!-- Use type="module" for Firebase imports -->
+    <script type="module">
+        // --- FIREBASE IMPORTS ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, serverTimestamp, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        setLogLevel('Debug');
+        
+        // --- GLOBAL VARIABLES (Cloud Run / Mock Tickers) ---
+        const CLOUD_RUN_HOST = "https://stock-analysis-api-1074266470837.us-central1.run.app"; 
         const BACKEND_BASE_URL = `${CLOUD_RUN_HOST}/api/analyze_stock`;
-        // *** NEW: Endpoint สำหรับทดสอบข้อมูลดิบเท่านั้น (เปลี่ยนจาก test_yfinance) ***
         const BACKEND_TEST_URL = `${CLOUD_RUN_HOST}/api/test_raw_data`; 
 
-        // NEW: Static list of popular tickers for the datalist guide (Point 1)
-        // ขยายรายการหุ้นแนะนำให้ครอบคลุมมากขึ้น
         const MOCK_TICKERS = [
-            // Tech Giants (NASDAQ/NYSE)
             "AAPL - Apple Inc. (S&P 500)", "MSFT - Microsoft Corp. (S&P 500)", "GOOGL - Alphabet Inc. (A) (S&P 500)", 
             "GOOG - Alphabet Inc. (C) (S&P 500)", "AMZN - Amazon.com Inc. (S&P 500)", "NVDA - NVIDIA Corp. (S&P 500)",
             "TSLA - Tesla, Inc. (S&P 500)", "META - Meta Platforms Inc. (S&P 500)", "NFLX - Netflix Inc. (S&P 500)",
-            "ADBE - Adobe Inc. (S&P 500)", "CRM - Salesforce Inc. (S&P 500)", "QCOM - Qualcomm Inc. (S&P 500)",
-            "INTC - Intel Corp. (S&P 500)", "AMD - Advanced Micro Devices Inc. (S&P 500)", "CSCO - Cisco Systems (S&P 500)",
-            "ORCL - Oracle Corp. (S&P 500)", "TXN - Texas Instruments Inc. (S&P 500)", "CRM - Salesforce (S&P 500)",
-            "AVGO - Broadcom Inc. (S&P 500)", "V - Visa Inc. (S&P 500)", "MA - Mastercard Inc. (S&P 500)",
-            "PYPL - PayPal Holdings Inc. (S&P 500)", "CMCSA - Comcast Corp. (S&P 500)", "DIS - Walt Disney Co. (S&P 500)",
-            
-            // Financial & Payments (S&P 500)
-            "JPM - JPMorgan Chase & Co. (S&P 500)", "BAC - Bank of America Corp. (S&P 500)", "WFC - Wells Fargo & Co. (S&P 500)", 
-            "GS - Goldman Sachs Group Inc. (S&P 500)", "MS - Morgan Stanley (S&P 500)", "C - Citigroup Inc. (S&P 500)",
-
-            // Healthcare & Pharma (S&P 500)
-            "JNJ - Johnson & Johnson (S&P 500)", "PFE - Pfizer Inc. (S&P 500)", "MRK - Merck & Co. Inc. (S&P 500)", 
-            "LLY - Eli Lilly and Co. (S&P 500)", "UNH - UnitedHealth Group Inc. (S&P 500)", "ABBV - AbbVie Inc. (S&P 500)",
-            "TMO - Thermo Fisher Scientific Inc. (S&P 500)", "ABT - Abbott Laboratories (S&P 500)",
-
-            // Consumer & Retail (S&P 500)
-            "WMT - Walmart Inc. (S&P 500)", "KO - Coca-Cola Co. (S&P 500)", "PEP - PepsiCo, Inc. (S&P 500)", 
-            "PG - Procter & Gamble Co. (S&P 500)", "SBUX - Starbucks Corp. (S&P 500)", "MCD - McDonald's Corp. (S&P 500)",
-            "NKE - Nike Inc. (S&P 500)", "COST - Costco Wholesale Corp. (S&P 500)", "HD - Home Depot Inc. (S&P 500)",
-            "TGT - Target Corp. (S&P 500)",
-            
-            // Industrial & Energy (S&P 500)
-            "XOM - Exxon Mobil Corp. (S&P 500)", "CVX - Chevron Corp. (S&P 500)", "BA - Boeing Co. (S&P 500)", 
-            "CAT - Caterpillar Inc. (S&P 500)", "LMT - Lockheed Martin Corp. (S&P 500)", "MMM - 3M Co. (S&P 500)",
-            "DE - Deere & Company (S&P 500)", "GE - General Electric Co. (S&P 500)",
-            
-            // Telecom/Utilities (S&P 500)
-            "VZ - Verizon Communications Inc. (S&P 500)", "T - AT&T Inc. (S&P 500)", "NEE - NextEra Energy Inc. (S&P 500)", 
-
-            // Asian/Global Examples
-            "BABA - Alibaba Group Holding Ltd", "TCEHY - Tencent Holdings Ltd", 
-            "TM - Toyota Motor Corp.", "SNEJF - Sony Group Corp.", "ASML - ASML Holding N.V.",
-
-            // Commodities & Crypto (Futures/USD)
+            "JPM - JPMorgan Chase & Co. (S&P 500)", "BAC - Bank of America Corp. (S&P 500)",
             "GLD - SPDR Gold Shares (ETF)", 
             "GC=F - Gold Futures (Commodity Ticker)", 
             "BTC-USD - Bitcoin (Major Crypto)", 
             "ETH-USD - Ethereum (Major Crypto)", 
-            "DOGE-USD - Dogecoin (Major Crypto)", 
-            "XRP-USD - XRP (Major Crypto)", 
-            "SOL-USD - Solana (Major Crypto)"
         ];
 
 
-        // Global store for signals (จำลองการเก็บข้อมูลหุ้นที่ถูกวิเคราะห์เป็น Buy/Strong Buy) - DELETED
         let chartInstance = null; // ตัวแปรสำหรับเก็บ Instance ของ Chart.js
         let debounceTimer; // สำหรับ debounce การค้นหาหุ้นอัตโนมัติ
         
-        // --- NEW: Function to update the simple status icon ---
-        function updateConnectionStatus(status) {
+        // --- FIREBASE STATE ---
+        let db, auth, userId = null;
+        let app, isAuthReady = false;
+        let watchlistData = []; // State for the watchlist
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- FIREBASE FUNCTIONS (Watchlist) ---
+
+        async function initFirebase() {
+            try {
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                    } else {
+                        userId = crypto.randomUUID(); // Fallback to random ID
+                    }
+                    isAuthReady = true;
+                    console.log("Firebase Auth Ready. User ID:", userId);
+                    document.getElementById('userIdDisplay').textContent = `User ID: ${userId}`; // Display full UID
+                    setupWatchlistListener();
+                });
+            } catch (e) {
+                console.error("Firebase Initialization Error:", e);
+                document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: Cannot initialize Firebase/Authentication. Check environment variables.</p>`;
+            }
+        }
+
+        function getWatchlistCollectionRef() {
+            if (!db || !userId) return null;
+            // Private data path: /artifacts/{appId}/users/{userId}/watchlist
+            return collection(db, `artifacts/${appId}/users/${userId}/watchlist`);
+        }
+
+        function setupWatchlistListener() {
+            const colRef = getWatchlistCollectionRef();
+            if (!colRef) return;
+
+            onSnapshot(colRef, (snapshot) => {
+                watchlistData = [];
+                snapshot.forEach((doc) => {
+                    watchlistData.push({ id: doc.id, ...doc.data() });
+                });
+                renderWatchlist();
+            }, (error) => {
+                console.error("Watchlist Snapshot Error:", error);
+                document.getElementById('watchlistList').innerHTML = `<p class="text-red-400">Error loading watchlist: ${error.message}</p>`;
+            });
+        }
+
+        window.addTickerToWatchlist = async function() {
+            const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+            if (!symbol || !isAuthReady) return;
+            
+            if (watchlistData.some(item => item.ticker === symbol)) {
+                alert("หุ้นนี้อยู่ใน Watchlist แล้ว!");
+                return;
+            }
+
+            try {
+                const colRef = getWatchlistCollectionRef();
+                if (!colRef) throw new Error("Firestore not initialized.");
+
+                await addDoc(colRef, {
+                    ticker: symbol,
+                    createdAt: serverTimestamp()
+                });
+                document.getElementById('symbolInput').value = '';
+            } catch (e) {
+                console.error("Error adding to watchlist:", e);
+                alert(`Failed to add ${symbol}. Error: ${e.message}`);
+            }
+        }
+
+        window.removeTickerFromWatchlist = async function(docId) {
+            if (!isAuthReady || !docId) return;
+
+            try {
+                const docRef = doc(db, `artifacts/${appId}/users/${userId}/watchlist`, docId);
+                await deleteDoc(docRef);
+            } catch (e) {
+                console.error("Error removing from watchlist:", e);
+                alert(`Failed to remove item. Error: ${e.message}`);
+            }
+        }
+
+        function renderWatchlist() {
+            const listContainer = document.getElementById('watchlistList');
+            if (!listContainer) return;
+
+            if (watchlistData.length === 0) {
+                listContainer.innerHTML = '<p class="text-gray-500 text-center py-4">ยังไม่มีหุ้นใน Watchlist</p>';
+                return;
+            }
+
+            listContainer.innerHTML = watchlistData.map(item => {
+                const ticker = item.ticker || 'N/A';
+                return `
+                    <div class="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-700 hover:bg-gray-800 transition duration-150 mb-2">
+                        <span class="text-lg font-bold text-blue-300 cursor-pointer" onclick="document.getElementById('symbolInput').value='${ticker}'; window.handleSymbolInput('${ticker}')">
+                            ${ticker}
+                        </span>
+                        <button class="text-red-500 hover:text-red-400 p-1 rounded" onclick="window.removeTickerFromWatchlist('${item.id}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- UTILITY FUNCTIONS (Made global for HTML access) ---
+
+        window.updateConnectionStatus = function(status) {
             const container = document.getElementById('connectionStatusIcon');
-            container.innerHTML = '';
+            // ... (Rest of the function body remains the same)
+             container.innerHTML = '';
             
             if (status === 'initial') {
                 container.className = 'status-icon status-initial';
-                // Icon: Exclamation mark in circle (Initial/Loading)
                 container.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M8.257 3.099c.765-1.554 2.656-1.554 3.42 0L15.46 11.2a1.75 1.75 0 01-1.574 2.55H6.114a1.75 1.75 0 01-1.573-2.55l3.42-8.101zM10 14a1 1 0 100 2 1 1 0 000-2zm-1-6a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd" />
@@ -274,7 +371,6 @@
                 `;
             } else if (status === 'success') {
                 container.className = 'status-icon status-success';
-                // Icon: Check mark in circle (Success)
                 container.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
@@ -282,7 +378,6 @@
                 `;
             } else if (status === 'error') {
                 container.className = 'status-icon status-error';
-                // Icon: X mark in circle (Error)
                 container.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
@@ -291,17 +386,15 @@
             }
         }
 
-        /**
-         * ฟังก์ชันหลักในการดึงข้อมูลหุ้นจาก Backend Server (Simple Fetch)
-         * - ใช้สำหรับ Advanced Analysis (เรียก Gemini API)
-         */
+        // --- CORE FETCHING & RENDERING (Made global for HTML access) ---
+
         async function fetchStockData(symbol, date) {
             const payload = {
                 ticker: symbol,
                 competitors: [], 
                 date: date 
             };
-           
+            
             const dataUrl = BACKEND_BASE_URL;
 
             console.log(`[FRONTEND] Sending POST request to ${dataUrl} with payload:`, payload);
@@ -313,7 +406,7 @@
                 body: JSON.stringify(payload),
             });
             console.log(`[FRONTEND] Received response status: ${response.status}`);
-           
+            
             if (!response.ok) {
                 const contentType = response.headers.get("content-type");
                 let errorBody = 'No detailed error message.';
@@ -324,20 +417,19 @@
                      errorBody = await response.text();
                      errorBody = `HTML Error (Check Backend Logs): ${errorBody.substring(0, 100)}...`; 
                 }
-               
+                
                 throw new Error(`Server responded with status ${response.status}: ${errorBody}`);
             }
 
             const result = await response.json();
-           
+            
             if (!result.analysis) { 
                  throw new Error("Backend did not return required analysis data.");
             }
             
             const competitorsFromBackend = result.competitors || [];
 
-            // ** FIX: อัปเดตสถานะเป็นสำเร็จ (Success) **
-            updateConnectionStatus('success');
+            window.updateConnectionStatus('success');
 
             return { 
                 data: result.historical_data || generateMockData(symbol, 250),
@@ -347,19 +439,16 @@
                     sector: 'N/A', 
                     industry: 'N/A', 
                     market_cap: result.market_cap,
-                    summary: result.analysis, // ใช้ analysis เป็น summary เพื่อแสดงผล
+                    summary: result.analysis, 
                     exchange: 'N/A',
-                    pe_ratio: result.pe_ratio, // ดึงค่า PE จาก Backend
-                    eps: result.eps, // ดึงค่า EPS จาก Backend
-                    dividend_yield: result.dividend_yield // ดึงค่า Dividend Yield จาก Backend
+                    pe_ratio: result.pe_ratio, 
+                    eps: result.eps, 
+                    dividend_yield: result.dividend_yield
                 },
-                peerComparison: competitorsFromBackend // ใช้ค่าจาก Backend
+                peerComparison: competitorsFromBackend
             };
         }
 
-        /**
-         * สร้างข้อมูลราคาปิดแบบสุ่มสำหรับวันย้อนหลัง (ใช้เมื่อ Server ล้มเหลว)
-         */
         function generateMockData(symbol, days) {
             const mockData = [];
             let price = 100 + Math.random() * 50;
@@ -368,17 +457,15 @@
             for (let i = days - 1; i >= 0; i--) {
                 const date = new Date(today);
                 date.setDate(today.getDate() - i);
-               
-                // สร้างความผันผวนของราคา (Random walk)
+                
                 price = price * (1 + (Math.random() - 0.5) * 0.015);
-               
-                // ไม่เพิ่มข้อมูลในวันเสาร์ (6) และอาทิตย์ (0) เพื่อจำลองวันทำการ
+                
                 if (date.getDay() !== 0 && date.getDay() !== 6) {
                     const closePrice = parseFloat(price.toFixed(2));
-                    // สร้าง OHLCV จำลอง
+                    const openPrice = closePrice * (1 - (Math.random() * 0.005 * (Math.random() > 0.5 ? 1 : -1))); 
                     mockData.push({
                         date: date.toISOString().split('T')[0],
-                        open: closePrice * (1 - (Math.random() * 0.01)),
+                        open: parseFloat(openPrice.toFixed(2)),
                         high: closePrice * (1 + (Math.random() * 0.01)),
                         low: closePrice * (1 - (Math.random() * 0.015)),
                         close: closePrice,
@@ -389,52 +476,40 @@
             return mockData;
         }
 
-        /**
-         * แปลง Market Cap (ตัวเลข) ให้เป็นรูปแบบที่อ่านง่าย (เช่น B, T)
-         * ใช้ภาษาสากล (International) สำหรับการแสดงผลตัวเลขทางการเงิน
-         */
         function formatMarketCap(num) {
             if (num === 0 || num === null || num === undefined) return 'N/A';
-            if (num >= 1e12) return (num / 1e12).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'T'; // Trillion
-            if (num >= 1e9) return (num / 1e9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'B'; // Billion
-            if (num >= 1e6) return (num / 1e6).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M'; // Million
+            if (num >= 1e12) return (num / 1e12).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'T'; 
+            if (num >= 1e9) return (num / 1e9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'B'; 
+            if (num >= 1e6) return (num / 1e6).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M'; 
             return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
         }
 
-        /**
-         * ฟังก์ชันใหม่: แปลงข้อมูลดิบ (.info) เป็น HTML Table ที่อ่านง่าย
-         * ใช้ภาษาสากล (International) สำหรับตัวเลขทางการเงิน
-         */
         function formatRawDataForDisplay(rawInfo) {
             if (!rawInfo || rawInfo.error) {
                 return '<p class="text-red-400">ไม่สามารถแยกวิเคราะห์ข้อมูลดิบได้</p>';
             }
 
-            // Helper function for formatting numbers/values
             const formatValue = (key, value) => {
-                if (value === null || value === undefined || value === 0 || value === 'N/A') return 'N/A';
+                if (value === null || value === undefined || value === 0 || value === 'N/A' || (typeof value === 'number' && isNaN(value))) return 'N/A';
                 if (typeof value === 'number') {
                     if (key.includes('Cap')) return formatMarketCap(value);
-                    // ใช้ toLocaleString('en-US') เพื่อให้เป็นรูปแบบสากล (เช่น 1,234.56)
                     if (key.includes('Price') || key.includes('High') || key.includes('Low')) return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     if (key.includes('PE') || key.includes('EPS') || key.includes('beta')) return value.toFixed(2);
                     if (key.includes('Yield')) return (value * 100).toFixed(2) + '%';
                     if (key.includes('Employees')) return value.toLocaleString('en-US');
                 }
-                // Handle long descriptions (summaries)
                 if (key === 'longBusinessSummary') {
-                    // จำกัดความยาวของสรุปธุรกิจในการแสดงผล
                     return `<p class="text-sm text-gray-400 whitespace-pre-wrap max-h-40 overflow-y-auto">${String(value).substring(0, 450)}...</p>`;
                 }
                 return String(value);
             };
 
             const importantKeys = {
-                'Long Name': 'longName', // ใช้ชื่อ Key เป็นภาษาอังกฤษทางการเงิน
+                'Long Name': 'longName', 
                 'Sector': 'sector',
                 'Industry': 'industry',
                 'Full Time Employees': 'fullTimeEmployees',
-                'Market Price': 'regularMarketPrice', // ถูกเอาออกไปแสดงผลด้านบนแล้ว
+                'Market Price': 'regularMarketPrice', 
                 'Market Cap': 'marketCap',
                 'P/E Trailing': 'trailingPE',
                 'P/E Forward': 'forwardPE',
@@ -444,20 +519,17 @@
                 'Beta': 'beta',
                 'Business Summary': 'longBusinessSummary',
             };
-           
-            // Refactoring to prioritize Market Price and add Logo (Points 2, 3)
+            
             const marketPriceValue = rawInfo['regularMarketPrice'];
             const marketPriceDisplay = formatValue('regularMarketPrice', marketPriceValue);
             const companyName = rawInfo.longName || rawInfo.symbol || 'N/A';
 
-            // Logo placeholder (Point 3)
             const logoPlaceholder = `
                 <div class="flex items-center justify-center w-12 h-12 bg-gray-900 rounded-full border border-blue-600 text-blue-400 text-xl font-bold mr-4 flex-shrink-0">
                     ${(rawInfo.symbol || '?').substring(0, 1)}
                 </div>
             `;
             
-            // Big Price Display (Point 2)
             const priceCard = `
                 <div class="w-full lg:w-1/3 p-4 bg-blue-900/40 rounded-xl shadow-xl border-2 border-blue-500/70 mb-4 lg:mb-0">
                     <p class="text-sm font-semibold text-blue-300">ราคาตลาดปัจจุบัน (Market Price)</p>
@@ -466,24 +538,23 @@
                 </div>
             `;
             
-            let htmlGridItems = ''; // New variable for the grid items
-            let summaryHtml = ''; // For the Business Summary
+            let htmlGridItems = ''; 
+            let summaryHtml = ''; 
 
             for (const [thaiName, key] of Object.entries(importantKeys)) {
                 if (key === 'regularMarketPrice') continue; 
                 
                 const rawValue = rawInfo[key];
                 const displayValue = formatValue(key, rawValue);
-               
+                
                 if (key === 'longBusinessSummary') {
-                    // *** LOGIC: Capture the Summary HTML here (before grid) ***
                     summaryHtml = `
                         <h4 class="info-header mt-6 text-xl">สรุปธุรกิจ (Business Summary):</h4>
                         ${displayValue} 
                     `;
                     continue;
                 }
-               
+                
                 if (displayValue === 'N/A') continue;
 
                 htmlGridItems += `
@@ -495,7 +566,6 @@
             }
 
             let html = `
-                <!-- Header with Logo and Company Name -->
                 <div class="flex items-center mb-6">
                     ${logoPlaceholder}
                     <div>
@@ -504,10 +574,8 @@
                     </div>
                 </div>
 
-                <!-- Price Card -->
                 ${marketPriceValue !== undefined && marketPriceValue !== null ? priceCard : ''}
 
-                <!-- START: Business Summary (Moved Up) -->
                 ${summaryHtml}
 
                 <h4 class="info-header mt-6">ข้อมูลพื้นฐานสำคัญ:</h4>
@@ -518,47 +586,35 @@
             return html;
         }
 
-
-        /**
-         * NEW: ฟังก์ชันที่ทำงานเมื่อมีการเปลี่ยนแปลงในช่องพิมพ์หุ้น
-         * - Debounce เพื่อป้องกันการเรียก API มากเกินไป
-         */
-        function handleSymbolInput(symbol) {
+        window.handleSymbolInput = function(symbol) {
             clearTimeout(debounceTimer);
             const symbolInput = symbol.trim().toUpperCase();
             const basicInfoDisplay = document.getElementById('basicInfoDisplay');
-            const advancedAnalysisButton = document.getElementById('advancedAnalysisButton');
-           
-            // Clear previous basic info and disable button
+            
+            document.getElementById('advancedAnalysisButton').disabled = true;
+
             basicInfoDisplay.innerHTML = '<p class="text-gray-400 p-4 rounded-lg bg-gray-800 text-center">กำลังรอชื่อหุ้นเพื่อดึงข้อมูลพื้นฐาน...</p>';
-            advancedAnalysisButton.disabled = true;
             document.getElementById('analysisOutput').innerHTML = '<!-- Advanced Analysis results will be appended here -->';
             
-            // ** FIX: อัปเดตสถานะเป็น Initial **
-            updateConnectionStatus('initial');
+            window.updateConnectionStatus('initial');
 
             if (symbolInput.length < 2) {
                 basicInfoDisplay.innerHTML = '<p class="text-gray-400 p-4 rounded-lg bg-gray-800 text-center">กรุณากรอกสัญลักษณ์หุ้น 2 ตัวอักษรขึ้นไป</p>';
                 return; 
             }
 
-            // Debounce for 800ms
             debounceTimer = setTimeout(() => {
                 fetchAndDisplayBasicInfo(symbolInput);
             }, 800);
         }
 
-        /**
-         * NEW: ฟังก์ชันดึงข้อมูลพื้นฐานเท่านั้น (Present Information)
-         * - ใช้ /api/test_raw_data ซึ่งเร็วกว่าและไม่เรียก Gemini
-         */
         async function fetchAndDisplayBasicInfo(symbol) {
             const basicInfoDisplay = document.getElementById('basicInfoDisplay');
             const advancedAnalysisButton = document.getElementById('advancedAnalysisButton');
 
             basicInfoDisplay.innerHTML = `<div class="text-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div><p class="mt-2 text-gray-400">กำลังดึงข้อมูลพื้นฐานล่าสุดของ ${symbol}...</p></div>`;
             advancedAnalysisButton.disabled = true;
-            updateConnectionStatus('initial');
+            window.updateConnectionStatus('initial');
 
             try {
                 const payload = { ticker: symbol };
@@ -571,23 +627,19 @@
                 if (response.ok) {
                     const result = await response.json();
                     let rawInfo = JSON.parse(result.raw_info_json);
-                   
+                    
                     basicInfoDisplay.innerHTML = `
                         <div class="card bg-gray-800 p-4 border border-green-700/50">
                             ${formatRawDataForDisplay(rawInfo)}
-                            <!-- Raw JSON output removed as per user request -->
                         </div>
                     `;
-                    // Enable Advanced Analysis button upon success
                     advancedAnalysisButton.disabled = false;
-                    // ** FIX: อัปเดตสถานะเป็นสำเร็จ (Success) **
-                    updateConnectionStatus('success');
+                    window.updateConnectionStatus('success');
 
                 } else {
                     let errorBody = await response.text();
                     basicInfoDisplay.innerHTML = `<p class="error-message">❌ ไม่พบข้อมูลหุ้น ${symbol} หรือ Server Error: ${response.status}</p>`;
-                    // ** FIX: อัปเดตสถานะเป็น Error **
-                    updateConnectionStatus('error');
+                    window.updateConnectionStatus('error');
                 }
             } catch (error) {
                 console.error('Basic Data Fetch Error:', error);
@@ -600,25 +652,19 @@
                     </ul>
                 `;
                 basicInfoDisplay.innerHTML = `<div class="error-message">ไม่สามารถเชื่อมต่อกับ Backend ได้: ${error.message.includes('Failed to fetch') ? 'โปรดตรวจสอบ Server URL หรือ Server Crash' : error.message}${backendAdvice}</div>`;
-                // ** FIX: อัปเดตสถานะเป็น Error **
-                updateConnectionStatus('error');
+                window.updateConnectionStatus('error');
             }
         }
 
 
-        // --- ฟังก์ชันคำนวณ Indicators ขั้นสูง (ไม่มีการเปลี่ยนแปลง) ---
-       
-        /**
-         * คำนวณ Exponential Moving Average (EMA)
-         */
         function calculateEMA(data, period, closePrices) {
             if (closePrices.length < period) {
                 return Array(closePrices.length).fill(null); 
             }
-           
+            
             const multiplier = 2 / (period + 1);
             let emas = Array(closePrices.length).fill(null);
-           
+            
             let sum = 0;
             for (let i = 0; i < period; i++) {
                 sum += closePrices[i];
@@ -628,13 +674,10 @@
             for (let i = period; i < closePrices.length; i++) {
                 emas[i] = (closePrices[i] - emas[i - 1]) * multiplier + emas[i - 1];
             }
-           
+            
             return emas; 
         }
 
-        /**
-         * คำนวณ Relative Strength Index (RSI)
-         */
         function calculateRSI(closePrices, period = 14) {
             if (closePrices.length < period + 1) return null;
 
@@ -649,9 +692,9 @@
             for (let i = closePrices.length - 14; i < closePrices.length; i++) {
                 if (i > 0) changes.push(closePrices[i] - closePrices[i - 1]);
             }
-           
+            
             if (changes.length < period) return null;
-           
+            
             let avgGain = 0;
             let avgLoss = 0;
 
@@ -660,23 +703,20 @@
                 if (change > 0) avgGain += change;
                 else avgLoss += Math.abs(change);
             }
-           
+            
             avgGain /= period;
             avgLoss /= period;
-           
+            
             const rs = avgLoss === 0 ? (avgGain === 0 ? 0 : 100) : (avgGain / avgLoss);
             const rsi = 100 - (100 / (1 + rs));
 
             return rsi;
         }
 
-        /**
-         * คำนวณ Moving Average Convergence Divergence (MACD)
-         */
         function calculateMACD(closePrices) {
             const EMA12_All = calculateEMA(null, 12, closePrices);
             const EMA26_All = calculateEMA(null, 26, closePrices);
-           
+            
             const macdLineSeries = [];
             for (let i = 0; i < closePrices.length; i++) {
                 if (EMA12_All[i] !== null && EMA26_All[i] !== null) {
@@ -685,12 +725,12 @@
                      macdLineSeries.push(null);
                 }
             }
-           
+            
             const nonNullMacdLine = macdLineSeries.filter(v => v !== null);
             const signalLineSeriesRaw = calculateEMA(null, 9, nonNullMacdLine);
-           
+            
             let signalLineSeries = macdLineSeries.map(() => null);
-           
+            
             if(signalLineSeriesRaw.length > 0) {
                  for(let i = 0; i < signalLineSeriesRaw.length; i++){
                      if(signalLineSeriesRaw[i] !== null){
@@ -701,7 +741,7 @@
                      }
                  }
             }
-           
+            
             const macdLine = macdLineSeries[macdLineSeries.length - 1];
             const signalLine = signalLineSeries[signalLineSeries.length - 1];
             const histogram = macdLine !== null && signalLine !== null ? macdLine - signalLine : null;
@@ -711,23 +751,17 @@
                 macd: macdLine,
                 signal: signalLine,
                 histogram: histogram,
-                macdSeries: macdLineSeries, // สำหรับ Chart
-                signalSeries: signalLineSeries // สำหรับ Chart
+                macdSeries: macdLineSeries, 
+                signalSeries: signalLineSeries 
             };
         }
 
-        /**
-         * คำนวณ Simple Moving Average (SMA)
-         */
         function calculateSMA(data, period) {
             if (data.length < period) return null;
             const sum = data.slice(-period).reduce((acc, d) => acc + d.close, 0); 
             return sum / period;
         }
 
-        /**
-         * คำนวณ Standard Deviation (SD)
-         */
         function calculateStandardDeviation(data, period, sma) {
             if (data.length < period) return 0;
             const periodData = data.slice(-period);
@@ -735,9 +769,6 @@
             return Math.sqrt(variance);
         }
 
-        /**
-         * คำนวณ Bollinger Bands (BB)
-         */
         function calculateBollingerBands(data, period, numDeviations) {
             if (data.length < period) return {};
             const sma = calculateSMA(data, period);
@@ -751,9 +782,6 @@
             };
         }
 
-        /**
-         * วิเคราะห์ความแรงของแนวโน้ม (Trend Strength)
-         */
         function calculateTrendStrength(currentPrice, indicators, volumeAvg) {
             const { EMA12, EMA26, EMA50, EMA200, RSI, MACD } = indicators;
             let score = 0; 
@@ -764,21 +792,20 @@
 
             if (EMA50 > EMA200) score += 1;
             if (currentPrice > EMA200) score += 1;
-           
+            
             if (EMA12 > EMA26 && EMA26 > EMA50) score += 1.5; 
 
             if (MACD.histogram !== null && MACD.histogram > 0) score += 0.5;
-           
+            
             if (RSI > 40 && RSI < 70) score += 1; 
 
             if (volumeAvg > 0 && indicators.Volume > volumeAvg * 1.5) { 
                 score += 0.5;
             }
 
-
             let strength = '';
             let colorClass = '';
-           
+            
             if (score >= 4.5) { 
                 strength = 'แข็งแกร่ง (STRONG)';
                 colorClass = 'strength-strong';
@@ -792,16 +819,13 @@
 
             return { strength, colorClass, score };
         }
-       
-        /**
-         * วิเคราะห์สัญญาณซื้อ/ขายด้วย Multi-Indicator Logic (หลักการนักลงทุนชั้นนำ)
-         */
+        
         function analyzeMultiIndicatorSignal(currentPrice, indicators, volumeAvg) {
             const { EMA50, EMA200, RSI, MACD, BB, Volume } = indicators;
             let signal = 'HOLD';
             let rationaleList = [];
             let confidence = 0; 
-           
+            
             if (EMA50 === null || EMA200 === null) {
                 return { signal: 'HOLD', rationaleList: ["ข้อมูล EMA ระยะยาวไม่พอ"], buyTarget: 'N/A', sellTarget: 'N/A', stopLoss: 'N/A', confidence: 0 };
             }
@@ -850,26 +874,26 @@
 
             const isBuyingZone = BB.lower !== undefined && currentPrice <= BB.lower; 
             const isSellingZone = BB.upper !== undefined && currentPrice >= BB.upper; 
-           
+            
             const isVolumeAboveAvg = volumeAvg > 0 && Volume > volumeAvg;
 
             const isHealthyDip = isUptrend && 
-                                  RSI > 30 && RSI < 50 && 
-                                  currentPrice > EMA200 && 
-                                  currentPrice < EMA50; 
+                                     RSI > 30 && RSI < 50 && 
+                                     currentPrice > EMA200 && 
+                                     currentPrice < EMA50; 
 
             if (isHealthyDip) {
                 signal = 'BUY';
                 rationaleList.unshift("✔ BUY (Dip Opportunity): ราคาย่อตัวลงทดสอบแนวรับ EMA50 ในขณะที่ RSI ชี้ว่าโมเมนตัมกำลังพักตัว แต่แนวโน้มหลักยังเป็นขาขึ้น");
                 confidence += 2;
-               
+                
                 if (isMACDBullishCross) {
                     signal = 'STRONG BUY';
                     rationaleList[0] = "⭐ STRONG BUY (Dip Confirmation): สัญญาณย่อตัวที่สมบูรณ์ MACD ตัดขึ้นยืนยันการกลับตัวจาก EMA50";
                     confidence += 1.5;
                 }
             }
-           
+            
             else if (signal !== 'STRONG BUY' && signal !== 'BUY' && isUptrend && isMACDBullishCross && isVolumeAboveAvg && currentPrice > BB.middle) {
                 signal = 'BUY';
                 rationaleList.unshift("✔ BUY (Breakout Confirmation): แนวโน้มขาขึ้น, MACD ตัดขึ้น, และ Volume ยืนยัน");
@@ -878,7 +902,7 @@
                      rationaleList[0] = "⭐ STRONG BUY (Breakout Strength): โมเมนตัมและความแรงของแนวโน้มแข็งแกร่งมาก";
                 }
             }
-           
+            
             else if (isDowntrend && isSellingZone) {
                 signal = 'SELL';
                 rationaleList.unshift("⭐ STRONG SELL: แนวโน้มลงชัดเจน ราคาขึ้นไปทดสอบแนวต้าน");
@@ -887,14 +911,23 @@
 
             let buyTarget = BB.lower !== undefined ? BB.lower.toFixed(2) : 'N/A';
             let sellTarget = BB.upper !== undefined ? BB.upper.toFixed(2) : 'N/A';
-            let stopLoss = EMA50 !== null ? EMA50.toFixed(2) : 'N/A'; 
+            
+            let stopLoss = 'N/A';
+            const lowerBB = indicators.BB.lower;
+            const ema50 = indicators.EMA50;
+            
+            if (lowerBB !== undefined && ema50 !== null) {
+                // เลือกค่าที่น้อยกว่า
+                stopLoss = Math.min(lowerBB, ema50).toFixed(2);
+            } else if (lowerBB !== undefined) {
+                stopLoss = lowerBB.toFixed(2);
+            } else if (ema50 !== null) {
+                stopLoss = ema50.toFixed(2);
+            }
 
             return { signal, rationaleList, buyTarget, sellTarget, stopLoss, confidence };
         }
-       
-        /**
-         * วิเคราะห์มูลค่า (Valuation Analysis) จากค่า PE
-         */
+        
         function analyzeValuation(peRatio) {
             if (peRatio === null || peRatio === undefined || peRatio <= 0) {
                 return { value: 'N/A', class: 'text-gray-500' };
@@ -908,16 +941,17 @@
                 return { value: 'ถูก (Undervalued)', class: 'value-good' };
             }
         }
-       
-        /**
-         * แสดงกราฟราคาปิด EMA50 และ EMA200
-         */
-        function renderChart(historicalData, ema50All, ema200All) {
+        
+        function renderChart(historicalData, ema50All, ema200All, yMin, yMax) {
             const ctx = document.getElementById('stockChart').getContext('2d');
-           
-            const labels = historicalData.map(d => d.date);
+            
+            // NEW: Concise X-axis labels (MM/DD)
+            const labels = historicalData.map(d => {
+                const parts = d.date.split('-'); // YYYY-MM-DD
+                return `${parts[1]}/${parts[2]}`; // MM/DD
+            });
             const closePrices = historicalData.map(d => d.close);
-           
+            
             const ema50Data = ema50All || [];
             const ema200Data = ema200All || [];
 
@@ -968,15 +1002,15 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: true,
+                    maintainAspectRatio: false, 
                     scales: {
                         x: {
                             type: 'category',
                             ticks: {
-                                maxRotation: 0,
+                                maxRotation: 0, // Force no rotation for clean slide view
                                 minRotation: 0,
                                 autoSkip: true,
-                                maxTicksLimit: 10,
+                                maxTicksLimit: 12, 
                                 color: '#9CA3AF'
                             },
                             grid: {
@@ -984,6 +1018,9 @@
                             }
                         },
                         y: {
+                            // FIXED Y-AXIS
+                            min: yMin,
+                            max: yMax,
                             title: {
                                 display: true,
                                 text: 'Price (USD)',
@@ -1008,7 +1045,9 @@
                             intersect: false,
                             callbacks: {
                                 title: function(tooltipItems) {
-                                    return 'Date: ' + tooltipItems[0].label;
+                                    // Show full date in tooltip
+                                    const fullDate = historicalData[tooltipItems[0].dataIndex].date;
+                                    return 'Date: ' + fullDate; 
                                 },
                                 label: function(context) {
                                     let label = context.dataset.label || '';
@@ -1027,88 +1066,68 @@
             });
         }
 
-
-        /**
-         * NEW: ฟังก์ชันหลักที่ทำงานเมื่อกดปุ่มวิเคราะห์ขั้นสูง
-         * - ใช้สำหรับ Advanced Analysis (เรียก Gemini API)
-         */
-        async function runAdvancedAnalysis() {
+        window.runAdvancedAnalysis = async function() {
             const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase();
-            // Note: dateInput value is retrieved here but its visibility is hidden.
             const dateInput = document.getElementById('dateInput').value.trim(); 
-            const analysisOutput = document.getElementById('analysisOutput'); // Target for Advanced Output
+            const analysisOutput = document.getElementById('analysisOutput'); 
             const button = document.getElementById('advancedAnalysisButton');
             const strongBuyBanner = document.getElementById('strongBuyBanner');
-           
-            strongBuyBanner.classList.remove('active'); // ซ่อน Banner ทุกครั้งที่เริ่มวิเคราะห์
+            
+            strongBuyBanner.classList.remove('active'); 
 
-            // 1. ตรวจสอบความถูกต้องของ Input
             if (!symbolInput || !dateInput) {
                 analysisOutput.innerHTML = `<p class="error-message">กรุณากรอกชื่อหุ้น และวันที่ ให้ครบถ้วน</p>`;
-                updateConnectionStatus('error');
+                window.updateConnectionStatus('error');
                 return;
             }
-           
-            // 2. เตรียม UI สำหรับการโหลด (ในส่วน Advanced Analysis)
+            
             analysisOutput.innerHTML = `<div class="text-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400 mx-auto"></div><p class="mt-2 text-gray-400">กำลังเรียก AI วิเคราะห์เชิงลึก (Advanced Analysis)...</p></div>`;
             button.disabled = true;
-            updateConnectionStatus('initial');
+            window.updateConnectionStatus('initial');
 
             try {
-                // *** FIX: ใช้ fetchStockData โดยตรง (เรียก API) ***
                 const result = await fetchStockData(symbolInput, dateInput);
-               
-                // 4. วิเคราะห์และแสดงผล (เต็มรูปแบบ)
+                
                 displayResults(result, dateInput);
             } catch (error) {
-                // *** MODIFICATION: Make console log more explicit ***
                 console.error('Analysis Error: Backend Server FAILED. This is NOT a frontend (HTML/JS) error. See details below. Check your Python/Cloud Run logs.', error); 
-               
-                // 5. แสดงข้อความผิดพลาดเมื่อมีปัญหา (เช่น Server ปิด, หุ้นไม่ถูกต้อง)
+                
                 let errorMessage = `ไม่สามารถดำเนินการวิเคราะห์ได้: ${error.message}`;
-               
+                
                 if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
                     const currentBackendHost = CLOUD_RUN_HOST;
-                   
+                    
                     errorMessage = `ไม่สามารถเชื่อมต่อกับ Python Backend Server ได้ที่ ${currentBackendHost}. 
-                                    โปรดตรวจสอบ: 1) Cloud Run Service กำลังรันอยู่ (Min Instances = 1) 
-                                    2) **สำคัญที่สุด:** ในไฟล์ backend_server.py ตัวแปร API_KEY ถูกตั้งค่าเป็น Environment Variable ที่ถูกต้องหรือไม่ 
-                                    3) หากยังคงเกิดข้อผิดพลาดนี้ ให้ตรวจสอบ **Cloud Run Logs** เพื่อหาข้อผิดพลาด (Status 500) ภายใน Server`;
+                                         โปรดตรวจสอบ: 1) Cloud Run Service กำลังรันอยู่ (Min Instances = 1) 
+                                         2) **สำคัญที่สุด:** ในไฟล์ backend_server.py ตัวแปร API_KEY ถูกตั้งค่าเป็น Environment Variable ที่ถูกต้องหรือไม่ 
+                                         3) หากยังคงเกิดข้อผิดพลาดนี้ ให้ตรวจสอบ **Cloud Run Logs** เพื่อหาข้อผิดพลาด (Status 500) ภายใน Server`;
                 } else if (error.message.includes('Server responded with status 404')) {
                     errorMessage = `**ไม่พบข้อมูล:** ไม่พบสัญลักษณ์หุ้น '${symbolInput}' หรือข้อมูลย้อนหลังในวันที่ที่ระบุ`;
                 } else if (error.message.includes('Server responded with status 500')) {
-                    // *** MODIFICATION: Add a specific note about the console ***
                     errorMessage = `**ข้อผิดพลาดภายใน Server (Status 500):** Server Backend (Python) เกิดข้อผิดพลาดรุนแรงและ Crash ทันที (เช่น \`RuntimeError\`). 
-                                     <br>**(โปรดตรวจสอบ Console Log เพื่อดู Error Stacktrace)**
-                                     <br><br>สาเหตุที่พบบ่อย: 1. **Docker/Async Logic:** คุณต้องใช้ Gunicorn Worker Class ที่รองรับ Async (ต้องมี \`--worker-class gevent\` ใน Dockerfile CMD)
-                                     2. **Gemini API Key:** Key ถูกปฏิเสธ (403)
-                                     <br>โปรดตรวจสอบ **Dockerfile CMD** และ **Cloud Run Logs** โดยละเอียด
-                                     <br>Server Error Detail: <pre class="whitespace-pre-wrap text-sm text-red-300 bg-gray-900 p-3 rounded-lg mt-2">${error.message}</pre>`;
+                                         <br>**(โปรดตรวจสอบ Console Log เพื่อดู Error Stacktrace)**
+                                         <br><br>สาเหตุที่พบบ่อย: 1. **Docker/Async Logic:** คุณต้องใช้ Gunicorn Worker Class ที่รองรับ Async (ต้องมี \`--worker-class gevent\` ใน Dockerfile CMD)
+                                         2. **Gemini API Key:** Key ถูกปฏิเสธ (403)
+                                         <br>โปรดตรวจสอบ **Dockerfile CMD** และ **Cloud Run Logs** โดยละเอียด
+                                         <br>Server Error Detail: <pre class="whitespace-pre-wrap text-sm text-red-300 bg-gray-900 p-3 rounded-lg mt-2">${error.message}</pre>`;
                 }
 
 
                 analysisOutput.innerHTML = `<p class="error-message font-semibold">${errorMessage}</p>`;
-                updateConnectionStatus('error');
+                window.updateConnectionStatus('error');
             } finally {
-                // ** การแก้ไข:** ใช้ setTimeout เพื่อให้แน่ใจว่า Event Queue ถูกเคลียร์ก่อนปลดล็อคปุ่ม
                 setTimeout(() => {
                     button.disabled = false;
                 }, 50);
             }
         }
 
-        /**
-         * แสดงผลลัพธ์การวิเคราะห์ขั้นสูงไปยัง HTML
-         */
         function displayResults(result, targetDateStr) {
-            const { data, isMock, companyInfo, peerComparison } = result;
+            const { data, isMock, companyInfo } = result;
             const analysisOutput = document.getElementById('analysisOutput');
-            const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase(); // ดึง Symbol ล่าสุด
+            const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase(); 
             const strongBuyBanner = document.getElementById('strongBuyBanner');
-           
-            // ----------------------------------------------------
-            // 1. หาข้อมูล ณ วันที่ต้องการ (หรือวันทำการล่าสุด)
-            // ----------------------------------------------------
+            
             let targetData = data.find(d => d.date === targetDateStr);
             let latestAvailableData = data[data.length - 1];
             let actualAnalysisDate = targetData ? targetData.date : latestAvailableData.date;
@@ -1125,29 +1144,43 @@
                 return;
             }
 
+            // NEW: Calculate min/max price for fixed Y-axis
+            const allClosePrices = data.map(d => d.close);
+            const globalMinPrice = Math.min(...allClosePrices);
+            const globalMaxPrice = Math.max(...allClosePrices);
+            // Add 5% buffer
+            const yMin = globalMinPrice * 0.95; 
+            const yMax = globalMaxPrice * 1.05; 
+            // END NEW: Calculate min/max price for fixed Y-axis
+
+
             const currentPrice = targetData.close;
+            const previousDayData = data.slice(0, data.findIndex(d => d.date === actualAnalysisDate)).pop(); 
+            const previousClose = previousDayData ? previousDayData.close : targetData.open; 
+            
+            const priceChange = currentPrice - previousClose;
+            const percentageChange = (priceChange / previousClose) * 100;
+
+            const changeColorClass = priceChange > 0 ? 'text-green-500' : priceChange < 0 ? 'text-red-500' : 'text-gray-400';
+            const changeSign = priceChange > 0 ? '+' : '';
+            const priceChangeDisplay = `${changeSign}${priceChange.toFixed(2)} (${changeSign}${percentageChange.toFixed(2)}%)`;
+
+
             const historicalDataUntilTarget = data.filter(d => d.date <= actualAnalysisDate);
             const closePrices = historicalDataUntilTarget.map(d => d.close);
             const currentVolume = targetData.volume;
 
 
-            // ----------------------------------------------------
-            // 2. คำนวณ Technical Indicators ทั้งหมด
-            // ----------------------------------------------------
-            // คำนวณ Volume Average (20 วัน)
             const volume20Day = historicalDataUntilTarget.slice(-20).map(d => d.volume);
             const volumeAvg = volume20Day.reduce((a, b) => a + b, 0) / volume20Day.length;
 
 
-            // ต้องใช้ข้อมูลทั้งหมดเพื่อคำนวณ EMA สำหรับกราฟ
-            const allClosePrices = data.map(d => d.close);
             const ema200All = calculateEMA(data, 200, allClosePrices);
             const ema50All = calculateEMA(data, 50, allClosePrices);
             const ema26All = calculateEMA(data, 26, allClosePrices);
             const ema12All = calculateEMA(data, 12, allClosePrices);
-           
-           
-            // ดึงค่าล่าสุดสำหรับการวิเคราะห์สัญญาณ (ใช้ข้อมูล ณ วันที่ targetData)
+            
+            
             const index = data.findIndex(d => d.date === actualAnalysisDate);
 
             const indicators = {
@@ -1161,32 +1194,20 @@
                 Volume: currentVolume,
             };
 
-            // ----------------------------------------------------
-            // 3. วิเคราะห์สัญญาณ & ความแรงของแนวโน้ม & มูลค่า
-            // ----------------------------------------------------
             const analysis = analyzeMultiIndicatorSignal(currentPrice, indicators, volumeAvg);
             const trendStrength = calculateTrendStrength(currentPrice, indicators, volumeAvg);
             const valuation = analyzeValuation(companyInfo.pe_ratio);
 
-            // ----------------------------------------------------
-            // 4. จัดการ Strong Buy Banner 
-            // ----------------------------------------------------
             const currentSignal = analysis.signal;
             const currentStockName = companyInfo.name || symbolInput;
-           
-            // A. Fixed Banner
+            
             if (currentSignal === 'STRONG BUY') {
                 document.getElementById('bannerText').textContent = `⭐ STRONG BUY ALERT! (${currentStockName}) สัญญาณแข็งแกร่ง, ราคาเข้าเขตน่าซื้อ`;
                 strongBuyBanner.classList.add('active');
             } else {
                 strongBuyBanner.classList.remove('active');
             }
-           
-            // Watchlist Logic Removed
             
-            // ----------------------------------------------------
-            // 5. แสดงผลลัพธ์
-            // ----------------------------------------------------
             let dateWarning = '';
             if (isDateAdjusted) {
                 dateWarning = `<p class="warning-message mt-2">⚠️ วันที่ ${targetDateStr} ไม่ใช่วันทำการ. การวิเคราะห์จึงใช้ราคาปิดล่าสุดของ **${actualAnalysisDate}**</p>`;
@@ -1196,48 +1217,36 @@
 
             let signalClass = analysis.signal === 'BUY' ? 'buy' : analysis.signal === 'SELL' ? 'sell' : analysis.signal === 'STRONG BUY' ? 'buy' : 'hold';
 
-            // รายการหุ้นคู่แข่ง (Peer List) ถูกลบ
-            
-            // การแสดงผล PE/EPS (พร้อมการตรวจสอบ undefined/null)
             const peDisplay = (companyInfo.pe_ratio !== null && companyInfo.pe_ratio !== undefined && companyInfo.pe_ratio > 0)
                 ? companyInfo.pe_ratio.toFixed(2)
                 : 'N/A';
             const epsDisplay = (companyInfo.eps !== null && companyInfo.eps !== undefined) ? companyInfo.eps.toFixed(2) : 'N/A';
-           
+            
             const dividendYieldRaw = companyInfo.dividend_yield;
             const dividendYieldDisplay = (dividendYieldRaw !== null && dividendYieldRaw !== undefined)
                 ? `${(dividendYieldRaw * 100).toFixed(2)}%` 
                 : 'N/A';
-           
-            // ตัดคำว่า (object HTMLInputElement) ที่อาจติดมากับชื่อหุ้น
+            
             const cleanCompanyName = (companyInfo.name || symbolInput).replace(/\(.*\)/g, '').trim();
 
 
-            // *******************************************************************
-            // *** 1. ส่วนข้อมูลดิบและสถิติ (ซ้ายมือ) - DATA & STATS ***
-            // *******************************************************************
             const dataAndStatsHTML = `
-                <!-- กราฟราคา -->
-                <div class="card bg-gray-700 border border-gray-600">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4">กราฟราคาและแนวโน้ม (1 ปี Daily)</h3>
-                    <div style="height: 400px; width: 100%;">
-                        <canvas id="stockChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- ข้อมูล ณ วันที่วิเคราะห์ -->
+                <!-- ข้อมูล ณ วันที่วิเคราะห์ (MOVED TO TOP) -->
                 <div class="card bg-gray-700 border border-gray-600">
                     <h3 class="text-2xl font-bold text-gray-100 mb-4">ข้อมูล ณ วันที่วิเคราะห์ (Price Data)</h3>
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4 text-gray-300">
-                        <!-- Removed redundant company details, focused on Market Cap/Sector/Industry for context -->
                         <div><span class="font-semibold text-gray-400">ขนาด (Market Cap):</span> ${formatMarketCap(companyInfo.market_cap)}</div>
                         <div><span class="font-semibold text-gray-400">กลุ่มธุรกิจ:</span> ${companyInfo.sector || 'N/A'}</div>
                         <div><span class="font-semibold text-gray-400">อุตสาหกรรม:</span> ${companyInfo.industry || 'N/A'}</div>
                         <div><span class="font-semibold text-gray-400">ตลาด:</span> ${companyInfo.exchange || 'N/A'}</div>
                     </div>
-                   
+                    
                     <div class="info-header mt-4">ราคาปิด ณ วันที่ ${actualAnalysisDate}</div>
-                    <p class="text-lg font-semibold mb-2 text-gray-200">ราคา: <span class="target-price text-3xl text-blue-400">${currentPrice.toFixed(2)}</span></p>
+                    <p class="text-lg font-semibold mb-2 text-gray-200 flex items-center">
+                        ราคา: 
+                        <span class="target-price text-3xl text-blue-400 ml-2">${currentPrice.toFixed(2)}</span>
+                        <span class="ml-3 text-lg font-semibold ${changeColorClass}">${priceChangeDisplay}</span>
+                    </p>
 
                     <div class="grid grid-cols-2 gap-4 text-sm text-gray-300 border-t border-gray-600 pt-3 mt-3">
                         <div><span class="font-semibold text-gray-400">Open:</span> ${targetData.open ? targetData.open.toFixed(2) : 'N/A'}</div>
@@ -1246,17 +1255,23 @@
                         <div><span class="font-semibold text-gray-400">Volume:</span> ${targetData.volume ? targetData.volume.toLocaleString() : 'N/A'}</div>
                     </div>
                 </div>
+                
+                <!-- กราฟราคา -->
+                <div class="card bg-gray-700 border border-gray-600">
+                    <h3 class="text-xl font-bold text-gray-100 mb-4">กราฟราคาและแนวโน้ม (1 ปี Daily)</h3>
+                    <div class="chart-container-wrapper">
+                        <div class="chart-container-inner">
+                            <canvas id="stockChart"></canvas>
+                        </div>
+                    </div>
+                </div>
             `;
 
 
-            // *******************************************************************
-            // *** 2. ส่วนวิเคราะห์และสัญญาณ (ขวามือ) - ADVANCED ANALYSIS & SIGNAL ***
-            // *******************************************************************
             const analysisAndSignalHTML = `
-                <!-- สัญญาณซื้อขายหลัก -->
                 <div class="card bg-red-900/40 border-red-700/50">
                     <h3 class="text-2xl font-bold text-gray-100 mb-4">สรุปสัญญาณซื้อขาย</h3>
-                   
+                    
                     <div class="summary-card bg-gray-800 border border-gray-700">
                         <div class="flex items-center justify-between mt-3">
                             <p class="text-xl text-gray-200">สัญญาณ: <span id="tradeSignal" class="signal-box ${signalClass} text-2xl">${analysis.signal}</span></p>
@@ -1264,7 +1279,7 @@
                                 <span class="strength-indicator ${trendStrength.colorClass}">${trendStrength.strength}</span>
                             </p>
                         </div>
-                       
+                        
                         <div class="mt-6 border-t border-gray-600 pt-4">
                             <p class="font-bold text-gray-200 mb-2">เหตุผลและปัจจัยยืนยัน:</p>
                             <ul class="list-disc list-inside text-sm text-gray-300 space-y-1">
@@ -1272,7 +1287,7 @@
                             </ul>
                         </div>
                     </div>
-                   
+                    
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-center">
                         <div class="p-4 bg-blue-900/40 rounded-lg border border-blue-800">
                             <p class="text-sm font-medium text-blue-400">เป้าหมายเข้าซื้อ</p>
@@ -1282,7 +1297,7 @@
                         <div class="p-4 bg-red-900/40 rounded-lg border border-red-800">
                             <p class="text-sm font-medium text-red-400">จุดตัดขาดทุน (Stop Loss)</p>
                             <p id="stopLoss" class="target-price text-2xl text-red-400">${analysis.stopLoss}</p>
-                            <p class="text-xs text-gray-400 mt-1">(EMA 50 / แนวรับหลัก)</p>
+                            <p class="text-xs text-gray-400 mt-1">(Lower BB หรือ EMA 50 ที่น้อยกว่า)</p>
                         </div>
                         <div class="p-4 bg-green-900/40 rounded-lg border border-green-800">
                             <p class="text-sm font-medium text-green-400">เป้าหมายขาย/ทำกำไร</p>
@@ -1292,11 +1307,9 @@
                     </div>
                 </div>
 
-                <!-- Valuation Metrics & AI Summary -->
                 <div class="card bg-gray-700 border border-gray-600">
                     <h3 class="text-xl font-bold text-gray-100 mb-4">Valuation และบทสรุป AI</h3>
 
-                    <!-- Valuation Metrics -->
                     <div class="grid grid-cols-3 gap-x-4 p-4 bg-gray-800 rounded-xl border border-blue-700 shadow-inner">
                         <div class="text-center">
                             <span class="block text-xs font-semibold text-gray-400">Trailing P/E Ratio</span>
@@ -1319,52 +1332,44 @@
                     <p class="text-sm text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">${companyInfo.summary || 'ไม่พบข้อมูลสรุปธุรกิจ'}</p>
                 </div>
 
-                <!-- Indicators Table (Full Width now) -->
                 <div class="card bg-gray-800 p-4 border border-gray-700">
                     <h3 class="text-lg font-bold text-gray-100 mb-3">ค่า Technical Indicators</h3>
                     <div class="grid grid-cols-2 gap-y-3 gap-x-2 text-sm text-gray-300">
                         <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">RSI 14:</span></div>
                         <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.RSI !== null ? indicators.RSI.toFixed(2) : 'N/A'}</span></div>
-                       
+                        
                         <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">EMA 50:</span></div>
                         <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.EMA50 !== null ? indicators.EMA50.toFixed(2) : 'N/A'}</span></div>
-                       
+                        
                         <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">BB Upper:</span></div>
                         <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.BB.upper !== undefined ? indicators.BB.upper.toFixed(2) : 'N/A'}</span></div>
-                       
+                        
                         <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">BB Lower:</span></div>
                         <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.BB.lower !== undefined ? indicators.BB.lower.toFixed(2) : 'N/A'}</span></div>
-                       
+                        
                         <div class="pt-1"><span class="font-semibold text-gray-400">MACD Hist.:</span></div>
                         <div class="pt-1"><span class="indicator-value">${indicators.MACD.histogram !== null ? indicators.MACD.histogram.toFixed(2) : 'N/A'}</span></div>
                     </div>
                 </div>
             `;
-           
-            // โครงสร้างหลักของการแสดงผล (Main Output Structure)
+            
+            // REMOVED HEADERS
             analysisOutput.innerHTML = `
                 ${dateWarning}
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-                    <!-- คอลัมน์ซ้าย: Data and Stats -->
                     <div class="space-y-6">
-                        <h2 class="analysis-section-title">ส่วนที่ 1: ข้อมูลราคาและกราฟ (ต้องมีวันที่)</h2>
                         ${dataAndStatsHTML}
                     </div>
 
-                    <!-- คอลัมน์ขวา: Analysis and Signal -->
                     <div class="space-y-6">
-                        <h2 class="analysis-section-title">ส่วนที่ 2: สัญญาณและบทวิเคราะห์ AI</h2>
                         ${analysisAndSignalHTML}
                     </div>
                 </div>
             `;
-            // Call chart render function
-            renderChart(data, ema50All, ema200All);
+            // Pass min/max to renderChart
+            renderChart(data, ema50All, ema200All, yMin, yMax);
         }
-       
-        // Function updateWatchlistSummary() has been removed.
-
-        // กำหนดวันที่เริ่มต้นเป็นวันพรุ่งนี้สำหรับ User (เนื่องจาก yfinance มักจะอัปเดตข้อมูลถึงวันปัจจุบัน-1)
+        
         function setInitialDate() {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1372,28 +1377,59 @@
             document.getElementById('dateInput').value = dateStr;
         }
 
-        // NEW: Function to populate the datalist
         function setupStockDatalist() {
             const datalist = document.createElement('datalist');
             datalist.id = 'stockSuggestions';
             MOCK_TICKERS.forEach(ticker => {
                 const option = document.createElement('option');
-                // Use the full name/symbol string for better guidance
-                option.value = ticker.split(' - ')[0]; // Input value is just the Ticker
-                option.textContent = ticker;          // Display text in the dropdown
+                option.value = ticker.split(' - ')[0]; 
+                option.textContent = ticker;         
                 datalist.appendChild(option);
             });
             document.body.appendChild(datalist);
             document.getElementById('symbolInput').setAttribute('list', 'stockSuggestions');
         }
 
+        // NEW: Ticker Examples/Guide Setup
+        function setupTickerExamples() {
+            const examples = [
+                "🇺🇸 หุ้นสหรัฐ: AAPL, MSFT, GOOG, TSLA",
+                "🇹🇭 หุ้นไทย (SET): CPALL.BK, AOT.BK (ต้องมี .BK ต่อท้าย)",
+                "🪙 Commodity/ETF: GLD, GC=F (Gold Futures)",
+                "₿ Crypto: BTC-USD, ETH-USD",
+                "⚠️ ตรวจสอบ Ticker ใน yfinance อีกครั้งก่อนใช้งานจริง"
+            ];
+
+            const examplesHtml = `
+                <p class="font-bold text-gray-300 mb-1">ตัวอย่าง Ticker ที่รองรับ:</p>
+                <ul class="list-disc list-inside ml-2 space-y-1 text-gray-400">
+                    ${examples.map(ex => `<li>${ex}</li>`).join('')}
+                </ul>
+                <p class="mt-2 text-red-400">**คำเตือน:** รองรับเฉพาะ Ticker สากลที่สามารถดึงข้อมูลได้</p>
+            `;
+
+            document.getElementById('tickerExamples').innerHTML = examplesHtml;
+
+            document.getElementById('toggleTickerExamples').addEventListener('click', () => {
+                const examplesDiv = document.getElementById('tickerExamples');
+                const button = document.getElementById('toggleTickerExamples');
+                const isHidden = examplesDiv.classList.toggle('hidden');
+                button.textContent = isHidden ? '[ดูตัวอย่าง]' : '[ซ่อนตัวอย่าง]';
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            setupStockDatalist(); // Setup the stock ticker guide (Point 1)
+            setupStockDatalist(); 
             setInitialDate();
-            // Attach runAdvancedAnalysis to the new button ID
-            document.getElementById('advancedAnalysisButton').addEventListener('click', runAdvancedAnalysis); 
-           
-            // Trigger initial data load for default value ("GOOG")
+            setupTickerExamples(); // Setup the new feature
+            
+            // Attach runAdvancedAnalysis to the button
+            document.getElementById('advancedAnalysisButton').addEventListener('click', window.runAdvancedAnalysis); 
+            document.getElementById('addToWatchlistButton').addEventListener('click', window.addTickerToWatchlist); 
+
+            // Initialize Firebase and start listening to Watchlist
+            initFirebase(); 
+            
             const initialSymbol = document.getElementById('symbolInput').value;
             if (initialSymbol) {
                 fetchAndDisplayBasicInfo(initialSymbol);
@@ -1402,7 +1438,6 @@
     </script>
 </head>
 <body class="p-4 sm:p-8">
-    <!-- แถบแจ้งเตือน Strong Buy (Fixed Banner) -->
     <div id="strongBuyBanner" class="text-lg">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" viewBox="0 0 20 20" fill="currentColor">
             <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
@@ -1410,7 +1445,6 @@
         <span id="bannerText"></span>
     </div>
     
-    <!-- NEW: Icon Status Container (Top Right Corner) -->
     <div id="connectionStatusContainer">
         <div id="connectionStatusIcon" class="status-icon status-initial">
              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
@@ -1421,50 +1455,77 @@
 
 
     <div class="container-wrapper">
-        <!-- Header และ Watchlist ถูกลบออก -->
-
-        <!-- สถานะการเชื่อมต่อ (ข้อความแจ้งเตือนถูกลบออก เหลือแต่ Icon) -->
-        <div id="connectionStatus" class="text-sm text-blue-400 bg-blue-900/50 p-3 rounded-lg flex items-center mb-6 hidden">
-             <!-- Old connection status message is hidden -->
-        </div>
-
-        <!-- ส่วน Input และปุ่มวิเคราะห์ (จัดให้เล็กและชิดซ้ายบน) -->
-        <div class="card space-y-3 p-4 w-full md:w-1/2 lg:w-1/3 mb-8">
-           
-            <div>
-                <label for="symbolInput" class="block text-xs font-medium text-gray-400 mb-1">สัญลักษณ์หุ้น (Ticker Symbol)</label>
-                <!-- NEW: Auto-fetch on input change + datalist -->
-                <input type="text" id="symbolInput" oninput="handleSymbolInput(this.value)" class="w-full p-2 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="GOOG" value="GOOG" list="stockSuggestions">
-            </div>
-            <!-- ช่องวันที่ถูกซ่อนไว้ (แต่ยังคงค่าไว้เพื่อให้ Advanced Analysis ทำงานได้) -->
-            <div class="hidden">
-                <label for="dateInput" class="block text-sm font-medium text-gray-300 mb-1">วันที่วิเคราะห์เชิงเทคนิค</label>
-                <input type="date" id="dateInput" class="w-full p-3 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-            </div>
+        <!-- ---------------------------------------------------- -->
+        <!-- NEW: WATCHLIST & INPUT SECTION -->
+        <!-- ---------------------------------------------------- -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             
-            <!-- Advanced Analysis Button -->
-            <button id="advancedAnalysisButton" onclick="runAdvancedAnalysis()" disabled class="w-full py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition duration-150 ease-in-out text-sm">
-                🚨 Advanced AI Analysis
-            </button>
-        </div>
+            <!-- Ticker Input and Guide (Col 1) -->
+            <div class="card space-y-3 p-4">
+                <div class="flex justify-between items-end">
+                    <label for="symbolInput" class="block text-xs font-medium text-gray-400 mb-1">สัญลักษณ์หุ้น (Ticker Symbol)</label>
+                    <button id="toggleTickerExamples" class="text-xs text-blue-400 hover:text-blue-300 font-semibold transition duration-150">
+                        [ดูตัวอย่าง]
+                    </button>
+                </div>
+                <input type="text" id="symbolInput" oninput="window.handleSymbolInput(this.value)" class="w-full p-2 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="GOOG" value="GOOG" list="stockSuggestions">
+                
+                <div class="flex space-x-2">
+                    <button id="addToWatchlistButton" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-150 text-sm flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                        </svg>
+                        เพิ่มเข้า Watchlist
+                    </button>
+                </div>
 
-        <!-- NEW: ข้อมูลพื้นฐาน (Present Information) -->
+                <div id="tickerExamples" class="p-3 bg-gray-900 rounded-lg text-xs hidden border border-blue-700/50">
+                    <!-- Ticker examples content goes here via JS -->
+                </div>
+                
+                <div class="hidden">
+                    <label for="dateInput" class="block text-sm font-medium text-gray-300 mb-1">วันที่วิเคราะห์เชิงเทคนิค</label>
+                    <input type="date" id="dateInput" class="w-full p-3 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Watchlist Display (Col 2 & 3 - takes 2/3 width) -->
+            <div class="card lg:col-span-2">
+                <div class="flex justify-between items-center mb-3 border-b border-gray-600 pb-2">
+                    <h3 class="text-xl font-bold text-gray-100">Watchlist (รายการเฝ้าดู)</h3>
+                    <p id="userIdDisplay" class="text-xs text-gray-500"></p>
+                </div>
+                <div id="watchlistList" class="max-h-60 overflow-y-auto">
+                    <!-- Watchlist items rendered here by Firebase Listener -->
+                    <p class="text-gray-500 text-center py-4">กำลังโหลด Watchlist...</p>
+                </div>
+            </div>
+        </div>
+        <!-- ---------------------------------------------------- -->
+        <!-- END: WATCHLIST & INPUT SECTION -->
+        <!-- ---------------------------------------------------- -->
+
+
         <div class="mt-8">
             <h2 class="analysis-section-title">ข้อมูลพื้นฐาน (Present Information)</h2>
             <div id="basicInfoDisplay">
-                <!-- ข้อมูลพื้นฐานจะถูกโหลดอัตโนมัติที่นี่ -->
                 <p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800 text-center">กรุณากรอกสัญลักษณ์หุ้น เพื่อดึงข้อมูลพื้นฐาน</p>
             </div>
         </div>
 
-        <!-- ผลการวิเคราะห์ขั้นสูง (Advanced Analysis) -->
         <div class="mt-8">
             <h2 class="analysis-section-title">ผลการวิเคราะห์ขั้นสูง (Advanced Analysis)</h2>
             <div id="analysisOutput">
-                <!-- ผลลัพธ์จากการกดปุ่ม Advanced Analysis จะแสดงที่นี่ -->
                 <p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800">กดปุ่ม **Advanced Analysis** เพื่อเรียกใช้ Technical Indicators, กราฟราคา และบทวิเคราะห์ AI</p>
             </div>
         </div>
+
+        <div class="mt-8 text-center">
+            <button id="advancedAnalysisButton" onclick="window.runAdvancedAnalysis()" disabled class="w-full md:w-1/2 lg:w-1/3 py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition duration-150 ease-in-out text-lg">
+                🚨 Advanced AI Analysis
+            </button>
+        </div>
+
     </div>
 </body>
 </html>
