@@ -332,7 +332,24 @@
                 });
             } catch (e) {
                 console.error("Firebase Initialization Error:", e);
-                document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: Cannot initialize Firebase/Authentication. ${e.message}</p>`;
+                
+                let errorMessage = e.message;
+                
+                // NEW: Enhanced error message for auth/api-key-not-valid (HTTP 400)
+                if (e.code && (e.code === 'auth/api-key-not-valid' || e.code === 'auth/unauthorized-domain' || e.message.includes('API key is not valid'))) {
+                    errorMessage = `
+                        ข้อผิดพลาดร้ายแรง (Authentication Error 400): \`${e.code || 'API Key is not valid'}\`
+                        <p class="mt-2 font-bold text-red-300">สาเหตุที่เป็นไปได้ และวิธีแก้ไข:</p>
+                        <ul class="list-disc list-inside ml-4 text-sm mt-1 space-y-1">
+                            <li>**ไม่ได้เปิดใช้งาน Anonymous Auth:** โปรดไปที่ **Firebase Console** -> **Authentication** -> **Sign-in method** แล้วตรวจสอบว่า **Anonymous** ถูกเปิดใช้งานอยู่</li>
+                            <li>**ข้อจำกัดของ API Key:** Key อาจถูกจำกัดโดเมน. หากรันบน GitHub Pages (หรือโดเมนอื่น), ให้ตรวจสอบและเพิ่มโดเมนนั้นใน **Google Cloud Console** -> **APIs & Services** -> **Credentials**</li>
+                        </ul>
+                        <p class="mt-2 text-red-300">รายละเอียดข้อผิดพลาด: ${e.message}</p>
+                    `;
+                    document.getElementById('watchlistList').innerHTML = `<div class="error-message">${errorMessage}</div>`;
+                } else {
+                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: Cannot initialize Firebase/Authentication. ${e.message}</p>`;
+                }
             }
         }
 
