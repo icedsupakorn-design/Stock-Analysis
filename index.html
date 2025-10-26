@@ -76,6 +76,25 @@
             margin-top: 10px;
             font-weight: 500;
         }
+        /* NEW: Temporary Message Style */
+        .temp-message-success {
+            background-color: #15452b; /* Dark Green */
+            color: #A7F3D0; /* Light Green Text */
+            border: 1px solid #059669;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .temp-message-error {
+            background-color: #581d1d; /* Dark Red */
+            color: #FCA5A5; /* Light Red Text */
+            border: 1px solid #DC2626;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
         .info-header {
             font-weight: 700;
             color: #D1D5DB; /* Light Gray */
@@ -239,11 +258,41 @@
         let watchlistData = []; // State for the watchlist
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
+        // --- UTILITY: Temporary Message Display ---
+        function displayTemporaryMessage(message, type = 'success') {
+            const container = document.getElementById('watchlistMessage');
+            if (!container) return;
+
+            container.textContent = message;
+            container.className = `mt-2 temp-message-${type}`;
+
+            // Clear any previous timer and set a new one
+            if (container.messageTimer) {
+                clearTimeout(container.messageTimer);
+            }
+            container.messageTimer = setTimeout(() => {
+                container.textContent = '';
+                container.className = 'mt-2'; // Reset class
+            }, 3000);
+        }
+
+
         // --- FIREBASE FUNCTIONS (Watchlist) ---
 
         async function initFirebase() {
             try {
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                const configString = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+                
+                // NEW: Check if running outside Canvas (missing config)
+                if (!configString) {
+                    console.warn("Firebase config is missing. Watchlist feature disabled outside Canvas environment.");
+                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Watchlist ไม่ทำงาน: โปรแกรมไม่ได้รันในสภาพแวดล้อม Canvas (ขาด Firebase Config). โปรดตั้งค่า Firebase ด้วยตนเองหากต้องการใช้งาน.</p>`;
+                    return; // Stop initialization if config is missing
+                }
+                
+                const firebaseConfig = JSON.parse(configString);
+                
+                // --- Proceed with initialization only if config is present ---
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -267,7 +316,7 @@
                 });
             } catch (e) {
                 console.error("Firebase Initialization Error:", e);
-                document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: Cannot initialize Firebase/Authentication. Check environment variables.</p>`;
+                document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: Cannot initialize Firebase/Authentication. ${e.message}</p>`;
             }
         }
 
@@ -295,10 +344,14 @@
 
         window.addTickerToWatchlist = async function() {
             const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
-            if (!symbol || !isAuthReady) return;
+            if (!symbol) return;
+            if (!isAuthReady) {
+                displayTemporaryMessage("Watchlist ไม่พร้อมใช้งาน (กำลังโหลด/มีข้อผิดพลาด Firebase)", "error");
+                return;
+            }
             
             if (watchlistData.some(item => item.ticker === symbol)) {
-                alert("หุ้นนี้อยู่ใน Watchlist แล้ว!");
+                displayTemporaryMessage(`หุ้น ${symbol} อยู่ใน Watchlist แล้ว!`, "error");
                 return;
             }
 
@@ -311,21 +364,23 @@
                     createdAt: serverTimestamp()
                 });
                 document.getElementById('symbolInput').value = '';
+                displayTemporaryMessage(`เพิ่ม ${symbol} เข้า Watchlist เรียบร้อย`, "success");
             } catch (e) {
                 console.error("Error adding to watchlist:", e);
-                alert(`Failed to add ${symbol}. Error: ${e.message}`);
+                displayTemporaryMessage(`ไม่สามารถเพิ่ม ${symbol} ได้: ${e.message}`, "error");
             }
         }
 
-        window.removeTickerFromWatchlist = async function(docId) {
+        window.removeTickerFromWatchlist = async function(docId, ticker) {
             if (!isAuthReady || !docId) return;
 
             try {
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/watchlist`, docId);
                 await deleteDoc(docRef);
+                displayTemporaryMessage(`ลบ ${ticker || 'หุ้น'} ออกจาก Watchlist เรียบร้อย`, "success");
             } catch (e) {
                 console.error("Error removing from watchlist:", e);
-                alert(`Failed to remove item. Error: ${e.message}`);
+                displayTemporaryMessage(`ไม่สามารถลบรายการได้: ${e.message}`, "error");
             }
         }
 
@@ -345,7 +400,7 @@
                         <span class="text-lg font-bold text-blue-300 cursor-pointer" onclick="document.getElementById('symbolInput').value='${ticker}'; window.handleSymbolInput('${ticker}')">
                             ${ticker}
                         </span>
-                        <button class="text-red-500 hover:text-red-400 p-1 rounded" onclick="window.removeTickerFromWatchlist('${item.id}')">
+                        <button class="text-red-500 hover:text-red-400 p-1 rounded" onclick="window.removeTickerFromWatchlist('${item.id}', '${ticker}')">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
                             </svg>
@@ -359,7 +414,6 @@
 
         window.updateConnectionStatus = function(status) {
             const container = document.getElementById('connectionStatusIcon');
-            // ... (Rest of the function body remains the same)
              container.innerHTML = '';
             
             if (status === 'initial') {
@@ -1478,6 +1532,8 @@
                         เพิ่มเข้า Watchlist
                     </button>
                 </div>
+                <!-- NEW: Temporary message box for watchlist actions -->
+                <div id="watchlistMessage" class="mt-2"></div>
 
                 <div id="tickerExamples" class="p-3 bg-gray-900 rounded-lg text-xs hidden border border-blue-700/50">
                     <!-- Ticker examples content goes here via JS -->
