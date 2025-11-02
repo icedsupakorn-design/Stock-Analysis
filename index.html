@@ -117,6 +117,17 @@
             color: #c9d1d9 !important;
             font-size: 1.25rem !important;
         }
+        /* Watchlist Dropdown Header Style Override */
+        #watchlistHeader {
+            /* Make the watchlist header visually integrate with the card, but still clickable */
+            background-color: transparent; 
+            border: none;
+            padding: 12px 12px; /* Adjusted padding to be smaller */
+        }
+        #watchlistHeader:hover {
+            background-color: #30363d;
+        }
+
 
         /* Banner Style */
         #strongBuyBanner {
@@ -413,7 +424,7 @@
         }
 
         function renderWatchlist() {
-            const listContainer = document.getElementById('watchlistList');
+            const listContainer = document.getElementById('watchlistList'); // TARGET WATCHLIST LIST
             if (!listContainer) return;
 
             if (watchlistData.length === 0) {
@@ -1328,7 +1339,7 @@
                                 }
                             }
                         },
-                        // NEW: ZOOM CONFIGURATION
+                        // NEW: ZOOM CONFIGURATION (Enabled Pinch/Drag for mobile touch)
                         zoom: {
                             pan: {
                                 enabled: true,
@@ -1840,7 +1851,9 @@
             
             // Attach runAdvancedAnalysis to the button
             document.getElementById('advancedAnalysisButton').addEventListener('click', window.runAdvancedAnalysis);  
-            document.getElementById('addToWatchlistButton').addEventListener('click', window.addTickerToWatchlist);  
+            // Note: addToWatchlistButton listener is now set up below (in the grid)
+             document.getElementById('addTickerFromInput').addEventListener('click', window.addTickerToWatchlist);
+
 
             // Initialize Firebase and start listening to Watchlist
             initFirebase();  
@@ -1875,21 +1888,49 @@
         <!-- ---------------------------------------------------- -->
         <!-- INPUT & ACTION SECTION (Always visible at the top) -->
         <!-- ---------------------------------------------------- -->
-        <div class="card app-header"> <!-- HTML FIX: Removed redundant inline style 'style="margin: 0;"' -->
-            <div class="flex justify-between items-end">
-                <label for="symbolInput" class="block text-xs font-medium text-gray-400 mb-1">สัญลักษณ์หุ้น (Ticker)</label>
-                <button id="toggleTickerExamples" class="text-xs text-blue-400 hover:text-blue-300 font-semibold transition duration-150">
-                    [ดูตัวอย่าง]
-                </button>
-            </div>
-            <div class="flex space-x-2 mb-3">
-                 <input type="text" id="symbolInput" oninput="window.handleSymbolInput(this.value)" class="flex-grow p-2 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-2xl" placeholder="GOOG" value="GOOG" list="stockSuggestions">
-                 <button id="addToWatchlistButton" class="p-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-150 text-sm flex items-center justify-center flex-shrink-0" style="width: 48px; height: 48px;">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                         <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-                     </svg>
-                 </button>
-            </div>
+        <div class="card app-header">
+            
+            <!-- NEW: Ticker Input and Watchlist Dropdown Row (50/50 Split) -->
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                
+                <!-- COLUMN 1: Ticker Input (Shrunk) -->
+                <div class="col-span-1">
+                    <div class="flex justify-between items-end">
+                        <label for="symbolInput" class="block text-xs font-medium text-gray-400 mb-1">สัญลักษณ์ (Ticker)</label>
+                        <button id="toggleTickerExamples" class="text-xs text-blue-400 hover:text-blue-300 font-semibold transition duration-150">
+                            [ดูตัวอย่าง]
+                        </button>
+                    </div>
+                    <div class="flex space-x-1">
+                         <input type="text" id="symbolInput" oninput="window.handleSymbolInput(this.value)" class="flex-grow p-2 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-base" placeholder="AAPL" value="GOOG" list="stockSuggestions" style="font-size: 1rem !important; height: 44px;">
+                         <!-- Compact Add Button -->
+                         <button id="addTickerFromInput" class="p-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-150 text-sm flex items-center justify-center flex-shrink-0" style="width: 44px; height: 44px;">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                 <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                             </svg>
+                         </button>
+                    </div>
+                </div>
+
+                <!-- COLUMN 2: Watchlist Dropdown (New Accordion Structure) -->
+                <div class="col-span-1 border border-gray-700 rounded-lg h-full flex flex-col">
+                    <div id="watchlistHeader" class="accordion-header flex justify-between items-center flex-shrink-0" onclick="toggleAccordion('watchlistListContent', 'watchlistIcon')" style="height: 44px; padding: 10px 14px;">
+                        <!-- FIX 1: Change "รายการเฝ้าดู" to "เฝ้าดู" -->
+                        <!-- FIX 2: Ensure text is truncated to prevent overlap -->
+                        <h3 class="text-sm font-bold text-gray-100 flex items-center truncate">
+                             เฝ้าดู <span class="text-xs ml-2 text-gray-500 truncate" id="userIdDisplay"></span>
+                        </h3> 
+                        <svg id="watchlistIcon" class="w-4 h-4 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    <div id="watchlistListContent" class="accordion-content max-h-0 opacity-0 px-4" style="padding-left: 1rem; padding-right: 1rem; flex-grow: 1;">
+                        <div id="watchlistList" class="space-y-2 pb-2">
+                             <p class="text-gray-500 text-center py-4 text-sm">กำลังโหลดรายการเฝ้าดู...</p>
+                        </div>
+                    </div>
+                </div>
+            </div> 
+            <!-- END NEW ROW -->
+
             <!-- Ticker Examples (Hidden by default) -->
             <div id="tickerExamples" class="p-3 bg-gray-900 rounded-lg text-xs hidden border border-blue-700/50">
                 <!-- Ticker examples content goes here via JS -->
@@ -1897,18 +1938,6 @@
             <!-- Temporary message box for watchlist actions -->
             <div id="watchlistMessage" class="mt-2"></div>
             
-            <!-- --- WATCHLIST (MOVED TO STICKY HEADER) --- -->
-            <div class="mt-4 pt-4 border-t border-gray-700">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-xl font-bold text-gray-100">รายการเฝ้าดู</h3> <!-- Cleaned -->
-                    <p id="userIdDisplay" class="text-xs text-gray-500"></p>
-                </div>
-                <div id="watchlistList" class="max-h-60 overflow-y-auto space-y-2 p-3 bg-gray-900 rounded-lg border border-gray-700">
-                    <!-- Watchlist items rendered here by Firebase Listener -->
-                    <p class="text-gray-500 text-center py-4">กำลังโหลดรายการเฝ้าดู...</p> <!-- Cleaned -->
-                </div>
-            </div>
-            <!-- --- END WATCHLIST --- -->
         </div>
 
         <!-- FIXED ACTION BUTTON (Mobile-friendly fixed at the bottom) -->
@@ -1978,6 +2007,16 @@
                 content.style.opacity = 1;
                 content.classList.add('active-accordion');
                 icon.style.transform = 'rotate(180deg)';
+                
+                // Special case for Watchlist: Scroll into view if expanded on mobile (optional, as main input is at the top)
+                if (contentId === 'watchlistListContent') {
+                     // Find the header element
+                     const header = document.querySelector(`#${contentId}`).previousElementSibling;
+                     if (window.innerWidth < 640 && header) { // Apply only on mobile (Tailwind sm: breakpoint)
+                          // Scroll to the watchlist header when expanded to ensure it's visible
+                          header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                     }
+                }
             }
         }
         
@@ -1987,6 +2026,7 @@
              // Initial accordion state: collapsed.
              document.getElementById('basicInfoContent').style.maxHeight = null;
              document.getElementById('analysisOutputContent').style.maxHeight = null;
+             document.getElementById('watchlistListContent').style.maxHeight = null; // New watchlist accordion init
 
              // Ensure initial info is fetched on load, and open the Basic Info Accordion
              const initialSymbol = document.getElementById('symbolInput').value;
@@ -2019,23 +2059,7 @@
         const originalRunAdvancedAnalysis = window.runAdvancedAnalysis;
         window.runAdvancedAnalysis = async function() {
              await originalRunAdvancedAnalysis();
-             // Ensure analysis accordion is open after running the analysis
-             const content = document.getElementById('analysisOutputContent');
-             const icon = document.getElementById('analysisIcon');
-             
-             // --- FIX: Logic to open the accordion has been moved inside the try block of runAdvancedAnalysis (after displayResults) ---
-             // --- The redundant logic here is removed, but the function definition remains for compatibility ---
-             
-             /* if (!content.classList.contains('active-accordion')) {
-                 content.style.maxHeight = "3000px"; 
-                 content.style.opacity = 1;
-                 content.classList.add('active-accordion');
-                 icon.style.transform = 'rotate(180deg)';
-                 
-                 // Scroll to the analysis section to show the result immediately
-                 document.getElementById('analysisCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-             }
-             */
+             // The logic to open and scroll the analysis accordion is inside the originalRunAdvancedAnalysis (displayResults)
         }
     </script>
 </body>
