@@ -1,196 +1,86 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เครื่องมือวิเคราะห์หุ้นอัตโนมัติ (Dark Mode)</title>
-    <!-- โหลด Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
-    <!-- โหลด Chart.js สำหรับทำกราฟ --><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>เครื่องมือวิเคราะห์หุ้นอัตโนมัติ</title>
+    <!-- โหลด Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลด Chart.js และ Zoom Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #1f2937; /* Dark Background */
-            color: #e5e7eb; /* Light Default Text */
-            line-height: 1.6;
-            padding-top: 60px; 
+            background-color: #0d1117; /* Very Dark Background (GitHub Dark) */
+            color: #c9d1d9; /* Light Gray Default Text */
+            line-height: 1.5;
+            padding: 0;
         }
         .container-wrapper {
-            max-width: 1200px; /* ขยายความกว้างสำหรับ 2 คอลัมน์ */
+            max-width: 600px; /* Max width for mobile-friendly view */
             margin: 0 auto;
-            padding: 20px;
+            padding: 0;
+            padding-bottom: 80px; /* Space for fixed button */
+        }
+        .app-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background-color: #0d1117;
+            padding: 16px 16px 8px; /* FIX: Consistent horizontal padding (16px) */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
         .card {
-            background-color: #2d3748; /* Dark Card Background */
-            padding: 24px;
+            background-color: #161b22; /* Darker Card Background */
+            padding: 16px;
             border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4); /* Darker Shadow */
-            margin-bottom: 24px;
-            border: 1px solid #374151;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            margin: 0 16px 16px; /* Consistent horizontal margin (16px) */
+            border: 1px solid #30363d;
         }
-        .signal-box {
-            padding: 12px 24px;
+        /* Style for Accordion Header */
+        .accordion-header {
+            background-color: #21262d; /* Slightly lighter for clickable area */
             border-radius: 8px;
+            padding: 14px;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .accordion-header:hover {
+            background-color: #30363d;
+        }
+        .accordion-content {
+            padding-top: 16px;
+            padding-bottom: 8px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+
+        /* Signal Box */
+        .signal-box {
+            padding: 8px 16px;
+            border-radius: 6px;
             font-weight: 800;
             display: inline-block;
-            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+            font-size: 1.25rem;
         }
-        /* สีของสัญญาณยังคงเดิมเพื่อให้ชัดเจน */
-        .buy {
-            background-color: #059669; 
-            color: white;
-        }
-        .sell {
-            background-color: #DC2626; 
-            color: white;
-        }
-        .hold {
-            background-color: #FBBF24; 
-            color: #1f2937; /* Dark text for yellow background */
-        }
-        .target-price {
-            font-weight: 800;
-            color: #f3f4f6; /* Light gray for price */
-        }
-        .summary-card {
-            background-color: #374151; /* Slightly darker than card for contrast */
-            padding: 16px;
-            border-radius: 8px;
-            margin-top: 12px;
-        }
-        /* ปรับสีข้อความและพื้นหลังสำหรับ Error/Warning ให้มีคอนทราสต์บนพื้นหลังมืด */
-        .error-message {
-            background-color: #450A0A; /* Dark Red */
-            color: #FECACA; /* Light Red Text */
-            border: 1px solid #7F1D1D;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-            font-weight: 600;
-        }
-        .warning-message {
-            background-color: #422006; /* Dark Brown/Amber */
-            color: #FCD34D; /* Light Amber Text */
-            border: 1px solid #78350F;
-            padding: 10px;
-            border-radius: 6px;
-            margin-top: 10px;
-            font-weight: 500;
-        }
-        /* NEW: Temporary Message Style */
-        .temp-message-success {
-            background-color: #15452b; /* Dark Green */
-            color: #A7F3D0; /* Light Green Text */
-            border: 1px solid #059669;
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .temp-message-error {
-            background-color: #581d1d; /* Dark Red */
-            color: #FCA5A5; /* Light Red Text */
-            border: 1px solid #DC2626;
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .info-header {
-            font-weight: 700;
-            color: #D1D5DB; /* Light Gray */
-            margin-top: 12px;
-            margin-bottom: 6px;
-            border-bottom: 1px solid #4B5563; /* Darker border */
-            padding-bottom: 4px;
-        }
-        .strength-indicator {
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            font-weight: 800;
-        }
-        .strength-strong {
-            background-color: #059669;
-            color: white;
-        }
-        .strength-moderate {
-            background-color: #FBBF24;
-            color: #1f2937;
-        }
-        .strength-weak {
-            background-color: #7F1D1D; /* Dark Red background */
-            color: #FECACA; /* Light Red text */
-        }
-        .value-good {
-            color: #34D399; /* Lighter Green */
-            font-weight: 800;
-        }
-        .value-bad {
-            color: #FCA5A5; /* Lighter Red */
-            font-weight: 800;
-        }
-        .value-neutral {
-            color: #FBBF24; /* Amber */
-            font-weight: 800;
-        }
-        .indicator-value {
-            font-weight: 700;
-            color: #f3f4f6;
-            font-size: 1.1rem;
-        }
-        /* Custom input and button styling for dark mode */
-        input {
-            background-color: #374151 !important;
-            border-color: #4b5563 !important;
-            color: #f3f4f6 !important;
-        }
-        /* --- New Banner Styles --- */
-        #strongBuyBanner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background-color: #059669; /* Green for Strong Buy */
-            color: white;
-            padding: 10px 20px;
-            text-align: center;
-            font-weight: 700;
-            z-index: 1000;
-            transform: translateY(-100%);
-            transition: transform 0.3s ease-in-out;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 60px;
-        }
-        #strongBuyBanner.active {
-            transform: translateY(0);
-        }
-        
-        /* Custom style for Basic Info box to stand out */
-        #basicInfoDisplay {
-            min-height: 250px;
-            transition: opacity 0.3s;
-        }
-        /* Style for Advanced Analysis Sections */
-        .analysis-section-title {
-            font-size: 1.75rem; /* text-3xl */
-            font-weight: 700; /* font-bold */
-            color: #f3f4f6; /* text-gray-100 */
-            border-bottom: 2px solid #4b5563; /* border-gray-600 */
-            padding-bottom: 8px; /* pb-2 */
-            margin-bottom: 1rem; /* mb-4 */
-        }
-        /* New style for connection status box (top right) */
+        .buy { background-color: #10b981; color: white; }
+        .sell { background-color: #ef4444; color: white; }
+        .hold { background-color: #f59e0b; color: #161b22; }
+
+        /* Status Icon (Top Right) */
         #connectionStatusContainer {
             position: fixed;
-            top: 80px; /* Below the banner */
-            right: 20px;
-            z-index: 999;
-            width: 40px;
-            height: 40px;
+            top: 10px; 
+            right: 10px;
+            z-index: 1001;
+            width: 30px;
+            height: 30px;
         }
+        .status-success { background-color: #10b981; }
+        .status-initial { background-color: #3b82f6; }
+        .status-error { background-color: #ef4444; }
         .status-icon {
             width: 100%;
             height: 100%;
@@ -201,29 +91,118 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
             transition: background-color 0.3s;
         }
-        .status-success {
-            background-color: #059669; /* Green */
+
+        /* Fixed Footer Button */
+        #fixedActionButtonContainer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 12px 16px;
+            background-color: #0d1117;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 999;
         }
-        .status-initial {
-            background-color: #3B82F6; /* Blue */
+        #advancedAnalysisButton {
+            width: 100%;
+            padding: 14px;
+            font-size: 1.125rem;
+            font-weight: 700;
         }
-        .status-error {
-            background-color: #DC2626; /* Red */
+        
+        /* Input Field Styling */
+        input {
+            background-color: #21262d !important;
+            border-color: #4b5563 !important;
+            color: #c9d1d9 !important;
+            font-size: 1.25rem !important;
         }
 
-        /* NEW: Styles for scrollable chart container */
-        .chart-container-wrapper {
-            overflow-x: auto; /* Enable horizontal scrolling */
+        /* Banner Style */
+        #strongBuyBanner {
+            position: sticky;
+            top: 0; /* Changed from fixed to sticky to stack with header */
             width: 100%;
-            padding-bottom: 10px; /* Add some padding for scrollbar */
+            background-color: #10b981; 
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 700;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            display: none; /* Initial hidden state */
         }
+        #strongBuyBanner.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* General Adjustments */
+        .info-header {
+            font-weight: 700;
+            color: #8b949e; 
+            margin-top: 12px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #30363d; 
+            padding-bottom: 4px;
+        }
+        .target-price {
+            font-weight: 800;
+            color: #58a6ff; 
+        }
+        .error-message {
+            background-color: #3b0707; /* Dark Red */
+            color: #f87171; /* Light Red Text */
+            border: 1px solid #4a1919;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .watchlist-item {
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .watchlist-item:hover {
+            background-color: #30363d;
+        }
+        /* Chart container styling */
         .chart-container-inner {
-            min-width: 800px; /* Set a minimum width for the chart to ensure it scrolls */
-            width: 100%; /* Adjust to fill wrapper */
-            height: 400px;
+            width: 100%;
         }
+        .reset-button {
+             background-color: #4b5563;
+             color: #d1d5db;
+             padding: 4px 8px;
+             border-radius: 4px;
+             font-size: 0.8rem;
+             font-weight: 600;
+             margin-top: 8px;
+             transition: background-color 0.15s;
+         }
+         .reset-button:hover {
+             background-color: #6b7280;
+         }
+         /* Temporary Message Style */
+         .temp-message-success {
+             background-color: #15452b; /* Dark Green */
+             color: #A7F3D0; /* Light Green Text */
+             border: 1px solid #059669;
+             padding: 8px;
+             border-radius: 6px;
+             font-size: 0.85rem;
+             font-weight: 500;
+         }
+         .temp-message-error {
+             background-color: #581d1d; /* Dark Red */
+             color: #FCA5A5; /* Light Red Text */
+             border: 1px solid #DC2626;
+             padding: 8px;
+             border-radius: 6px;
+             font-size: 0.85rem;
+             font-weight: 500;
+         }
     </style>
-    <!-- Use type="module" for Firebase imports -->
+    <!-- Use type="module" for Firebase imports and core logic -->
     <script type="module">
         // --- FIREBASE IMPORTS ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -233,7 +212,7 @@
         setLogLevel('Debug');
         
         // --- GLOBAL VARIABLES (Cloud Run / Mock Tickers) ---
-        const CLOUD_RUN_HOST = "https://stock-analysis-api-1074266470837.us-central1.run.app"; 
+        const CLOUD_RUN_HOST = "https://stock-analysis-api-1074266470837.us-central1.run.app";  
         const BACKEND_BASE_URL = `${CLOUD_RUN_HOST}/api/analyze_stock`;
         const BACKEND_TEST_URL = `${CLOUD_RUN_HOST}/api/test_raw_data`; 
 
@@ -302,7 +281,7 @@
 
                 if (!isCanvasConfigValid && !isCustomConfigValid) {
                     console.warn("Firebase config is missing. Watchlist feature disabled outside Canvas environment.");
-                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Watchlist ไม่ทำงาน: โปรแกรมไม่ได้รันในสภาพแวดล้อม Canvas (ขาด Firebase Config). โปรดตั้งค่า \`YOUR_FIREBASE_CONFIG\` ด้วยค่าจริงของคุณ.</p>`;
+                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ รายการเฝ้าดู ไม่ทำงาน: โปรแกรมไม่ได้รันในสภาพแวดล้อม Canvas (ขาด Firebase Config). โปรดตั้งค่า \`YOUR_FIREBASE_CONFIG\` ด้วยค่าจริงของคุณ.</p>`;
                     return; // Stop initialization if config is missing
                 }
                 
@@ -339,16 +318,16 @@
                 if (e.code && (e.code === 'auth/api-key-not-valid' || e.code === 'auth/unauthorized-domain' || e.message.includes('API key is not valid'))) {
                     errorMessage = `
                         ข้อผิดพลาดร้ายแรง (Authentication Error 400): \`${e.code || 'API Key is not valid'}\`
-                        <p class="mt-2 font-bold text-red-300">สาเหตุที่เป็นไปได้ และวิธีแก้ไข:</p>
+                        <p class="mt-2 font-bold text-red-400">สาเหตุที่เป็นไปได้ และวิธีแก้ไข:</p>
                         <ul class="list-disc list-inside ml-4 text-sm mt-1 space-y-1">
                             <li>**ไม่ได้เปิดใช้งาน Anonymous Auth:** โปรดไปที่ **Firebase Console** -> **Authentication** -> **Sign-in method** แล้วตรวจสอบว่า **Anonymous** ถูกเปิดใช้งานอยู่</li>
                             <li>**ข้อจำกัดของ API Key:** Key อาจถูกจำกัดโดเมน. หากรันบน GitHub Pages (หรือโดเมนอื่น), ให้ตรวจสอบและเพิ่มโดเมนนั้นใน **Google Cloud Console** -> **APIs & Services** -> **Credentials**</li>
                         </ul>
-                        <p class="mt-2 text-red-300">รายละเอียดข้อผิดพลาด: ${e.message}</p>
+                        <p class="mt-2 text-red-400">รายละเอียดข้อผิดพลาด: ${e.message}</p>
                     `;
                     document.getElementById('watchlistList').innerHTML = `<div class="error-message">${errorMessage}</div>`;
                 } else {
-                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: Cannot initialize Firebase/Authentication. ${e.message}</p>`;
+                    document.getElementById('watchlistList').innerHTML = `<p class="error-message">❌ Firestore Error: ไม่สามารถเริ่มต้น Firebase/การยืนยันตัวตน. ${e.message}</p>`;
                 }
             }
         }
@@ -371,7 +350,23 @@
                 renderWatchlist();
             }, (error) => {
                 console.error("Watchlist Snapshot Error:", error);
-                document.getElementById('watchlistList').innerHTML = `<p class="text-red-400">Error loading watchlist: ${error.message}</p>`;
+                
+                let displayHtml = `<p class="text-red-400">ข้อผิดพลาดในการโหลดรายการเฝ้าดู: ${error.message}</p>`;
+
+                if (error.code === 'permission-denied' || error.message.includes('permission-denied')) {
+                    displayHtml = `
+                        <div class="error-message">
+                            **PERMISSION_DENIED (การเข้าถึงถูกปฏิเสธ):**
+                            <p class="mt-2 font-bold text-red-400">โปรดตรวจสอบ 2 ส่วนสำคัญใน Firebase Console:</p>
+                            <ul class="list-disc list-inside ml-4 text-sm mt-1 space-y-1">
+                                <li>**Authentication:** Anonymous Sign-in ถูกเปิดใช้งานหรือไม่?</li>
+                                <li>**Firestore Rules:** กฎอนุญาตให้ผู้ใช้งานที่ Authenticated (auth != null) อ่าน/เขียนใน Collection: \`/artifacts/${appId}/users/${userId}/watchlist\` หรือไม่?</li>
+                            </ul>
+                            <p class="mt-2 text-red-400">รหัสข้อผิดพลาด: ${error.code || error.message}</p>
+                        </div>`;
+                }
+                
+                document.getElementById('watchlistList').innerHTML = displayHtml;
             });
         }
 
@@ -379,25 +374,25 @@
             const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
             if (!symbol) return;
             if (!isAuthReady) {
-                displayTemporaryMessage("Watchlist ไม่พร้อมใช้งาน (กำลังโหลด/มีข้อผิดพลาด Firebase)", "error");
+                displayTemporaryMessage("รายการเฝ้าดูไม่พร้อมใช้งาน (กำลังโหลด/มีข้อผิดพลาด Firebase)", "error");
                 return;
             }
             
             if (watchlistData.some(item => item.ticker === symbol)) {
-                displayTemporaryMessage(`หุ้น ${symbol} อยู่ใน Watchlist แล้ว!`, "error");
+                displayTemporaryMessage(`หุ้น ${symbol} อยู่ในรายการเฝ้าดูแล้ว!`, "error");
                 return;
             }
 
             try {
                 const colRef = getWatchlistCollectionRef();
-                if (!colRef) throw new Error("Firestore not initialized.");
+                if (!colRef) throw new Error("Firestore ไม่ได้เริ่มต้น.");
 
                 await addDoc(colRef, {
                     ticker: symbol,
                     createdAt: serverTimestamp()
                 });
                 document.getElementById('symbolInput').value = '';
-                displayTemporaryMessage(`เพิ่ม ${symbol} เข้า Watchlist เรียบร้อย`, "success");
+                displayTemporaryMessage(`เพิ่ม ${symbol} เข้าสู่รายการเฝ้าดูเรียบร้อย`, "success");
             } catch (e) {
                 console.error("Error adding to watchlist:", e);
                 displayTemporaryMessage(`ไม่สามารถเพิ่ม ${symbol} ได้: ${e.message}`, "error");
@@ -410,7 +405,7 @@
             try {
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/watchlist`, docId);
                 await deleteDoc(docRef);
-                displayTemporaryMessage(`ลบ ${ticker || 'หุ้น'} ออกจาก Watchlist เรียบร้อย`, "success");
+                displayTemporaryMessage(`ลบ ${ticker || 'หุ้น'} ออกจากรายการเฝ้าดูเรียบร้อย`, "success");
             } catch (e) {
                 console.error("Error removing from watchlist:", e);
                 displayTemporaryMessage(`ไม่สามารถลบรายการได้: ${e.message}`, "error");
@@ -422,18 +417,18 @@
             if (!listContainer) return;
 
             if (watchlistData.length === 0) {
-                listContainer.innerHTML = '<p class="text-gray-500 text-center py-4">ยังไม่มีหุ้นใน Watchlist</p>';
+                listContainer.innerHTML = '<p class="text-gray-500 text-center py-4">ยังไม่มีหุ้นในรายการเฝ้าดู</p>';
                 return;
             }
 
             listContainer.innerHTML = watchlistData.map(item => {
                 const ticker = item.ticker || 'N/A';
                 return `
-                    <div class="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-700 hover:bg-gray-800 transition duration-150 mb-2">
-                        <span class="text-lg font-bold text-blue-300 cursor-pointer" onclick="document.getElementById('symbolInput').value='${ticker}'; window.handleSymbolInput('${ticker}')">
+                    <div class="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-700 watchlist-item">
+                        <span class="text-lg font-bold text-blue-300" onclick="document.getElementById('symbolInput').value='${ticker}'; window.handleSymbolInput('${ticker}')">
                             ${ticker}
                         </span>
-                        <button class="text-red-500 hover:text-red-400 p-1 rounded" onclick="window.removeTickerFromWatchlist('${item.id}', '${ticker}')">
+                        <button class="text-red-500 hover:text-red-400 p-1 rounded" onclick="event.stopPropagation(); window.removeTickerFromWatchlist('${item.id}', '${ticker}')">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
                             </svg>
@@ -452,42 +447,109 @@
             if (status === 'initial') {
                 container.className = 'status-icon status-initial';
                 container.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M8.257 3.099c.765-1.554 2.656-1.554 3.42 0L15.46 11.2a1.75 1.75 0 01-1.574 2.55H6.114a1.75 1.75 0 01-1.573-2.55l3.42-8.101zM10 14a1 1 0 100 2 1 1 0 000-2zm-1-6a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd" />
                     </svg>
                 `;
             } else if (status === 'success') {
                 container.className = 'status-icon status-success';
                 container.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                     </svg>
                 `;
             } else if (status === 'error') {
                 container.className = 'status-icon status-error';
                 container.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                     </svg>
                 `;
             }
         }
+        
+        /**
+         * UPDATED: Parses the EPS Growth rate displayed in the Basic Info DOM (#basicInfoDisplay).
+         * FIX: ใช้คำว่า 'การเติบโตของ EPS (YoY)' ในการค้นหา (ตามที่ถูกแก้ไขในรอบล่าสุด)
+         */
+        function getRateFromDOM(elementId) {
+            const container = document.getElementById(elementId);
+            if (!container) return null;
+
+            // 1. Search within the container for the span element containing the label text.
+            const labelSpan = Array.from(container.querySelectorAll('span')).find(span => 
+                span.textContent.includes('การเติบโตของ EPS (YoY)') 
+            );
+
+            if (!labelSpan) {
+                 console.warn("EPS Growth label not found in DOM.");
+                 return null;
+            }
+            
+            // 2. The parent element (div.flex.flex-col) holds both the label and the value.
+            const parentDiv = labelSpan.parentElement; 
+            if (!parentDiv || !parentDiv.classList.contains('flex-col')) {
+                 console.warn("EPS Growth parent div structure incorrect.");
+                 return null;
+            }
+            
+            // 3. The value span is the second child of the parent div in the grid item.
+            const valueElement = parentDiv.querySelector('span:nth-child(2)');
+            
+            if (!valueElement) {
+                 console.warn("EPS Growth value span (second child) not found.");
+                 return null;
+            }
+
+            let epsGrowthValue = valueElement.textContent.trim();
+
+            if (epsGrowthValue.includes('N/A')) return null;
+
+            // Clean the string (remove %, trim spaces)
+            const cleanedValue = epsGrowthValue.replace('%', '').trim();
+            const rate = parseFloat(cleanedValue);
+
+            // Convert percentage (35.30) to decimal (0.353)
+            if (isNaN(rate) || rate <= 0) return null;
+            
+            console.log(`[getRateFromDOM] Extracted Rate: ${rate / 100}`);
+            return rate / 100;
+        }
+
+
+        /**
+         * UPDATED CALCULATION FUNCTION: Calculates PEG Ratio
+         */
+        function calculatePegRatio(fwdPE, epsGrowth) {
+            // Check for invalid P/E or zero/negative P/E
+            if (fwdPE === null || fwdPE === undefined || isNaN(fwdPE) || fwdPE <= 0) return null;
+            
+            // Check for invalid or non-positive growth rate
+            if (epsGrowth === null || epsGrowth === undefined || isNaN(epsGrowth) || epsGrowth <= 0) return null;
+            
+            // Convert decimal growth rate (0.20) to percentage number (20) for the PEG formula denominator
+            const annualGrowthRatePercent = epsGrowth * 100;
+
+            // Double check: if growth is positive but somehow very close to zero after calculation, still avoid division by zero
+            if (annualGrowthRatePercent <= 0.001) return null;
+
+            return fwdPE / annualGrowthRatePercent;
+        }
 
         // --- CORE FETCHING & RENDERING (Made global for HTML access) ---
 
         async function fetchStockData(symbol, date) {
-            // Note: Competitors are currently mocked in the backend, hence empty list here.
             const payload = {
                 ticker: symbol,
-                competitors: [], 
-                date: date 
+                competitors: [],  
+                date: date  
             };
             
             const dataUrl = BACKEND_BASE_URL;
 
             console.log(`[FRONTEND] Sending POST request to ${dataUrl} with payload:`, payload);
             const response = await fetch(dataUrl, {
-                method: 'POST', 
+                method: 'POST',  
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -499,11 +561,11 @@
                 const contentType = response.headers.get("content-type");
                 let errorBody = 'No detailed error message.';
                 if (contentType && contentType.indexOf("application/json") !== -1) {
-                     const errorJson = await response.json().catch(() => ({ error: 'Unknown server error.' }));
-                     errorBody = errorJson.error || errorJson.message || JSON.stringify(errorJson);
+                    const errorJson = await response.json().catch(() => ({ error: 'Unknown server error.' }));
+                    errorBody = errorJson.error || errorJson.message || JSON.stringify(errorJson);
                 } else if (contentType && contentType.indexOf("text/html") !== -1) {
-                     errorBody = await response.text();
-                     errorBody = `HTML Error (Check Backend Logs): ${errorBody.substring(0, 100)}...`; 
+                    errorBody = await response.text();
+                    errorBody = `HTML Error (Check Backend Logs): ${errorBody.substring(0, 100)}...`; 
                 }
                 
                 throw new Error(`Server responded with status ${response.status}: ${errorBody}`);
@@ -511,31 +573,55 @@
 
             const result = await response.json();
             
-            if (!result.analysis) { 
-                 throw new Error("Backend did not return required analysis data.");
+            if (!result.analysis) {  
+                 throw new Error("Backend ไม่ได้ส่งข้อมูลบทวิเคราะห์ที่จำเป็นกลับมา.");
             }
             
             const competitorsFromBackend = result.competitors || [];
 
             window.updateConnectionStatus('success');
 
+            // --- CRITICAL FIX: Get EPS Growth from DOM if backend result is null/missing/N/A ---
+            let epsGrowth = result.eps_growth;
+            
+            if (epsGrowth === null || epsGrowth === undefined || isNaN(epsGrowth) || epsGrowth === 0) {
+                 console.warn("EPS Growth is missing/invalid from backend response 2. Attempting to retrieve from Basic Info DOM.");
+                 
+                 // Try to retrieve from the DOM, which was rendered by fetchAndDisplayBasicInfo
+                 const epsGrowthFromDOM = getRateFromDOM('basicInfoDisplay');
+                 
+                 if (epsGrowthFromDOM !== null) {
+                     epsGrowth = epsGrowthFromDOM;
+                     console.log(`[FRONTEND] Successfully retrieved EPS Growth from DOM: ${epsGrowth * 100}%`);
+                 } else {
+                     console.warn("[FRONTEND] Failed to retrieve EPS Growth from DOM. Value remains null/N/A.");
+                 }
+            } else {
+                 console.log("[FRONTEND] EPS Growth successfully retrieved from Backend result.");
+            }
+            // --- END CRITICAL FIX ---
+
+
             // --- NOTE: Backend now returns 3 years (3y) of historical data ---
-            return { 
+            return {  
                 data: result.historical_data || generateMockData(symbol, 750), // 3 years is approx 750 days
                 isMock: false,
-                companyInfo: { 
-                    name: result.name, 
-                    sector: 'N/A', 
-                    industry: 'N/A', 
+                companyInfo: {  
+                    name: result.name,  
+                    sector: 'N/A',  
+                    industry: 'N/A',  
                     market_cap: result.market_cap,
-                    summary: result.analysis, 
+                    summary: result.analysis,  
                     exchange: 'N/A',
-                    pe_ratio: result.pe_ratio, 
-                    eps: result.eps, 
+                    pe_ratio: result.pe_ratio, // Trailing P/E
+                    forward_pe: result.forward_pe, // NEW: Forward P/E from Backend
+                    peg_ratio: result.peg_ratio, // ADDED: PEG Ratio from Backend (Crucial for Growth Stocks)
+                    eps: result.eps,  
                     dividend_yield: result.dividend_yield,
                     // --- NEW FIELDS FROM BACKEND ---
-                    return_on_equity: result.return_on_equity, 
-                    net_margin: result.net_margin
+                    return_on_equity: result.return_on_equity,  
+                    net_margin: result.net_margin,
+                    eps_growth: epsGrowth // UPDATED: ใช้ค่าจาก Backend (หรือค่าจาก DOM)
                     // --- END NEW FIELDS ---
                 },
                 news: result.news || [], // Array of news objects
@@ -572,9 +658,9 @@
 
         function formatMarketCap(num) {
             if (num === 0 || num === null || num === undefined) return 'N/A';
-            if (num >= 1e12) return (num / 1e12).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'T'; 
-            if (num >= 1e9) return (num / 1e9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'B'; 
-            if (num >= 1e6) return (num / 1e6).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M'; 
+            if (num >= 1e12) return (num / 1e12).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'T';  
+            if (num >= 1e9) return (num / 1e9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'B';  
+            if (num >= 1e6) return (num / 1e6).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M';  
             return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
         }
 
@@ -588,10 +674,10 @@
                 if (typeof value === 'number') {
                     if (key.includes('Cap')) return formatMarketCap(value);
                     if (key.includes('Price') || key.includes('High') || key.includes('Low')) return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    if (key.includes('PE') || key.includes('EPS')) return value.toFixed(2);
+                    if (key.includes('PE') || key.includes('EPS') || key.includes('peg')) return value.toFixed(2); // UPDATED: Format PEG
                     
-                    // Format Financial Ratios (Dividend Yield, ROE, Net Margin) as percentage
-                    if (key.includes('Yield') || key.includes('returnOnEquity') || key.includes('profitMargins') || key.includes('netIncomeMargin')) {
+                    // Format Financial Ratios (ROE, Net Margin, EPS Growth) as percentage
+                    if (key.includes('returnOnEquity') || key.includes('profitMargins') || key.includes('netIncomeMargin') || key.includes('eps_growth')) {
                         // Assuming the backend sends a decimal ratio (e.g., 0.0032 for 0.32%)
                         return (value * 100).toFixed(2) + '%';
                     }
@@ -605,26 +691,26 @@
             };
 
             const importantKeys = {
-                'Long Name': 'longName', 
-                'Sector': 'sector',
-                'Industry': 'industry',
-                'Full Time Employees': 'fullTimeEmployees',
-                'Market Price': 'regularMarketPrice', 
-                'Market Cap': 'marketCap',
-                'P/E Trailing': 'trailingPE',
-                'P/E Forward': 'forwardPE',
-                'ROE (Return on Equity)': 'returnOnEquity', 
-                'Net Margin': 'profitMargins', 
-                '52 Week High': 'fiftyTwoWeekHigh',
-                '52 Week Low': 'fiftyTwoWeekLow',
-                'Dividend Yield': 'dividendYield',
-                'Business Summary': 'longBusinessSummary',
+                'ชื่อบริษัท': 'longName',  // Cleaned: Long Name -> ชื่อบริษัท
+                'หมวดธุรกิจ': 'sector', // Cleaned: Sector
+                'อุตสาหกรรมย่อย': 'industry', // Cleaned: Industry
+                'จำนวนพนักงาน': 'fullTimeEmployees', // Cleaned: Full Time Employees
+                'ราคาตลาด': 'regularMarketPrice',  // Cleaned: Market Price
+                'มูลค่าหลักทรัพย์ตามราคาตลาด': 'marketCap', // Cleaned: Market Cap
+                'P/E (ย้อนหลัง)': 'trailingPE', // Cleaned: P/E Trailing
+                'P/E (คาดการณ์)': 'forwardPE', // Cleaned: P/E Forward
+                'PEG Ratio': 'pegRatio', 
+                'ROE (ผลตอบแทนต่อส่วนของผู้ถือหุ้น)': 'returnOnEquity',  // Cleaned: ROE (Return on Equity)
+                'Net Margin (อัตรากำไรสุทธิ)': 'profitMargins',  // Cleaned: Net Margin
+                'การเติบโตของ EPS (YoY)': 'eps_growth', // Cleaned: EPS Growth (YoY Estimate)
+                'ราคาสูงสุด 52 สัปดาห์': 'fiftyTwoWeekHigh', // Cleaned: 52 Week High
+                'ราคาต่ำสุด 52 สัปดาห์': 'fiftyTwoWeekLow', // Cleaned: 52 Week Low
+                'สรุปธุรกิจ': 'longBusinessSummary', // Cleaned: Business Summary
             };
             
             const rawInfoAliases = {
                 'returnOnEquity': rawInfo.returnOnEquity,
                 'profitMargins': rawInfo.profitMargins,
-                'dividendYield': rawInfo.dividendYield
             };
 
 
@@ -633,32 +719,37 @@
             const companyName = rawInfo.longName || rawInfo.symbol || 'N/A';
 
             const logoPlaceholder = `
-                <div class="flex items-center justify-center w-12 h-12 bg-gray-900 rounded-full border border-blue-600 text-blue-400 text-xl font-bold mr-4 flex-shrink-0">
+                <div class="flex items-center justify-center w-10 h-10 bg-gray-900 rounded-full border border-blue-600 text-blue-400 text-lg font-bold mr-3 flex-shrink-0">
                     ${(rawInfo.symbol || '?').substring(0, 1)}
                 </div>
             `;
             
             const priceCard = `
-                <div class="w-full lg:w-1/3 p-4 bg-blue-900/40 rounded-xl shadow-xl border-2 border-blue-500/70 mb-4 lg:mb-0">
-                    <p class="text-sm font-semibold text-blue-300">ราคาตลาดปัจจุบัน (Market Price)</p>
-                    <p class="text-5xl font-extrabold text-white mt-1">${marketPriceDisplay}</p>
-                    <p class="text-xs text-gray-400 mt-1">USD</p>
+                <div class="w-full p-4 bg-blue-900/40 rounded-xl shadow-xl border-2 border-blue-500/70 mb-4">
+                    <p class="text-sm font-semibold text-blue-300">ราคาตลาดปัจจุบัน</p>
+                    <p class="text-4xl font-extrabold text-white mt-1">${marketPriceDisplay}</p>
+                    <p class="text-xs text-gray-400 mt-1">${rawInfo.currency || 'USD'}</p>
                 </div>
             `;
             
-            let htmlGridItems = ''; 
-            let summaryHtml = ''; 
+            let htmlGridItems = '';  
+            let summaryHtml = '';  
 
             for (const [thaiName, key] of Object.entries(importantKeys)) {
-                if (key === 'regularMarketPrice') continue; 
+                if (key === 'regularMarketPrice') continue;  
                 
                 let rawValue = rawInfo[key];
                 
                 if (key === 'returnOnEquity') {
                     rawValue = rawInfo.returnOnEquity || rawInfo.summaryDetail?.returnOnEquity;
                 } else if (key === 'profitMargins') {
-                    // Net Margin in yfinance is often 'profitMargins'
                     rawValue = rawInfo.profitMargins || rawInfo.summaryDetail?.profitMargins;
+                } else if (key === 'eps_growth') { 
+                    rawValue = rawInfo.earningsGrowth || rawInfo.eps_growth || rawInfo.summaryDetail?.earningsGrowth;
+                } else if (key === 'forwardPE') {
+                    rawValue = rawInfo.forwardPE || rawInfo.summaryDetail?.forwardPE;
+                } else if (key === 'pegRatio') {
+                    rawValue = rawInfo.pegRatio || rawInfo.summaryDetail?.pegRatio;
                 }
 
 
@@ -666,28 +757,28 @@
                 
                 if (key === 'longBusinessSummary') {
                     summaryHtml = `
-                        <h4 class="info-header mt-6 text-xl">สรุปธุรกิจ (Business Summary):</h4>
-                        ${displayValue} 
+                        <h4 class="info-header mt-4 text-lg">${thaiName}:</h4>
+                        ${displayValue}  
                     `;
                     continue;
                 }
                 
-                if (displayValue === 'N/A' && !key.includes('P/E')) continue; 
+                if (displayValue === 'N/A' && !key.includes('P/E') && !key.includes('PEG') && !key.includes('Growth')) continue;  
 
                 htmlGridItems += `
                     <div class="flex flex-col p-3 bg-gray-900/50 rounded-lg border border-gray-700">
                         <span class="text-gray-400 font-medium mb-1">${thaiName}</span>
-                        <span class="font-bold text-lg text-green-300">${displayValue}</span>
+                        <span class="font-bold text-base text-green-300">${displayValue}</span>
                     </div>
                 `;
             }
 
             let html = `
-                <div class="flex items-center mb-6">
+                <div class="flex items-center mb-4">
                     ${logoPlaceholder}
                     <div>
-                        <h3 class="text-3xl font-bold text-gray-100">${companyName} (${rawInfo.symbol || 'N/A'})</h3>
-                        <p class="text-xs text-gray-400">${rawInfo.exchange || 'ตลาดหลักทรัพย์'}</p>
+                        <h3 class="text-2xl font-bold text-gray-100">${companyName} (${rawInfo.symbol || 'N/A'})</h3>
+                        <p class="text-xs text-gray-400">${rawInfo.exchange || 'N/A'}</p>
                     </div>
                 </div>
 
@@ -695,14 +786,15 @@
 
                 ${summaryHtml}
 
-                <h4 class="info-header mt-6">ข้อมูลพื้นฐานสำคัญ:</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm mt-4">
+                <h4 class="info-header mt-4">ข้อมูลพื้นฐานสำคัญ:</h4>
+                <div class="grid grid-cols-2 gap-3 text-sm mt-3" id="basicInfoGrid">
                     ${htmlGridItems}
                 </div>
             `;
             return html;
         }
 
+        // Overridden in the main script block to add Accordion logic
         window.handleSymbolInput = function(symbol) {
             clearTimeout(debounceTimer);
             const symbolInput = symbol.trim().toUpperCase();
@@ -710,14 +802,14 @@
             
             document.getElementById('advancedAnalysisButton').disabled = true;
 
-            basicInfoDisplay.innerHTML = '<p class="text-gray-400 p-4 rounded-lg bg-gray-800 text-center">กำลังรอชื่อหุ้นเพื่อดึงข้อมูลพื้นฐาน...</p>';
-            document.getElementById('analysisOutput').innerHTML = '<!-- Advanced Analysis results will be appended here -->';
+            basicInfoDisplay.innerHTML = '<div class="text-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div><p class="mt-2 text-gray-400">กำลังรอสัญลักษณ์หุ้นเพื่อดึงข้อมูลพื้นฐาน...</p></div>';
+            document.getElementById('analysisOutput').innerHTML = '<p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800">กดปุ่ม **เรียกใช้ AI วิเคราะห์เชิงลึก** ด้านล่าง</p>';
             
             window.updateConnectionStatus('initial');
 
             if (symbolInput.length < 2) {
                 basicInfoDisplay.innerHTML = '<p class="text-gray-400 p-4 rounded-lg bg-gray-800 text-center">กรุณากรอกสัญลักษณ์หุ้น 2 ตัวอักษรขึ้นไป</p>';
-                return; 
+                return;  
             }
 
             debounceTimer = setTimeout(() => {
@@ -736,7 +828,7 @@
             try {
                 const payload = { ticker: symbol };
                 const response = await fetch(BACKEND_TEST_URL, {
-                    method: 'POST', 
+                    method: 'POST',  
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
@@ -746,15 +838,17 @@
                     let rawInfo = JSON.parse(result.raw_info_json);
                     
                     // Manually assign new fields if available, otherwise default to N/A or null
-                    // This is for demonstration if Backend is not updated yet.
                     if (rawInfo.summaryDetail) {
                         rawInfo.returnOnEquity = rawInfo.summaryDetail.returnOnEquity;
                         rawInfo.netIncomeMargin = rawInfo.summaryDetail.netIncomeMargin;
+                        rawInfo.forwardPE = rawInfo.summaryDetail.forwardPE; // Ensure forwardPE is pulled
+                        rawInfo.pegRatio = rawInfo.summaryDetail.pegRatio; // Ensure PEG is pulled
+                        rawInfo.eps_growth = rawInfo.summaryDetail.earningsGrowth; // Ensure EPS Growth is pulled
                     }
 
 
                     basicInfoDisplay.innerHTML = `
-                        <div class="card bg-gray-800 p-4 border border-green-700/50">
+                        <div class="card p-0" style="background-color: transparent; border: none; box-shadow: none; margin: 0;">
                             ${formatRawDataForDisplay(rawInfo)}
                         </div>
                     `;
@@ -769,7 +863,7 @@
             } catch (error) {
                 console.error('Basic Data Fetch Error:', error);
                 const backendAdvice = `
-                    <p class="font-bold text-red-300 mt-2">คำแนะนำสำคัญ:</p>
+                    <p class="font-bold text-red-400 mt-2">คำแนะนำสำคัญ:</p>
                     <ul class="list-disc list-inside ml-4 text-sm mt-1 space-y-1">
                         <li>**ข้อผิดพลาดหลัก:** \`Failed to fetch\` หมายความว่า Server (Cloud Run) อาจจะ Crash ทันทีที่ถูกเรียก (Error 500)</li>
                         <li>**การแก้ไข:** โปรดตรวจสอบไฟล์ **Dockerfile** ว่าได้เพิ่มคำสั่ง \`RUN apt-get install build-essential\` เพื่อติดตั้ง Dependencies ที่จำเป็นสำหรับ \`yfinance\` และ \`pandas\` หรือไม่</li>
@@ -781,10 +875,45 @@
             }
         }
 
+        /**
+         * NEW FUNCTION: Parses the unstructured AI text summary to extract the final signal and rationale.
+         */
+        function extractAISignal(aiSummary) {
+            let signal = 'HOLD';
+            let rationale = ["AI Hybrid Analysis: ไม่สามารถระบุสัญญาณซื้อขายจากบทสรุปได้ชัดเจน"];
+
+            if (!aiSummary || aiSummary.length < 50) return { signal, rationale };
+
+            const summaryUpper = aiSummary.toUpperCase();
+            
+            // Priority Check: STRONG BUY/SELL
+            if (summaryUpper.includes('STRONG BUY') || summaryUpper.includes('สัญญาณซื้อที่แข็งแกร่ง') || summaryUpper.includes('โอกาสซื้อที่แข็งแกร่ง')) {
+                signal = 'STRONG BUY';
+                // Using the full summary as rationale is better for AI content
+                rationale = [aiSummary]; 
+            } else if (summaryUpper.includes('STRONG SELL') || summaryUpper.includes('สัญญาณขายที่แข็งแกร่ง')) {
+                signal = 'STRONG SELL';
+                rationale = [aiSummary];
+            }
+            // Secondary Check: Standard BUY/SELL
+            else if (summaryUpper.includes('BUY') || summaryUpper.includes('สัญญาณซื้อ') || summaryUpper.includes('แนะนำให้ซื้อ')) {
+                signal = 'BUY';
+                rationale = [aiSummary];
+            } else if (summaryUpper.includes('SELL') || summaryUpper.includes('สัญญาณขาย') || summaryUpper.includes('แนะนำให้ขาย')) {
+                signal = 'SELL';
+                rationale = [aiSummary];
+            } else {
+                // Default to HOLD and use the summary as rationale if no clear signal found
+                rationale = [aiSummary];
+            }
+            
+            return { signal, rationale };
+        }
+
 
         function calculateEMA(data, period, closePrices) {
             if (closePrices.length < period) {
-                return Array(closePrices.length).fill(null); 
+                return Array(closePrices.length).fill(null);  
             }
             
             const multiplier = 2 / (period + 1);
@@ -794,13 +923,13 @@
             for (let i = 0; i < period; i++) {
                 sum += closePrices[i];
             }
-            emas[period - 1] = sum / period; 
+            emas[period - 1] = sum / period;  
 
             for (let i = period; i < closePrices.length; i++) {
                 emas[i] = (closePrices[i] - emas[i - 1]) * multiplier + emas[i - 1];
             }
             
-            return emas; 
+            return emas;  
         }
 
         function calculateRSI(closePrices, period = 14) {
@@ -845,9 +974,9 @@
             const macdLineSeries = [];
             for (let i = 0; i < closePrices.length; i++) {
                 if (EMA12_All[i] !== null && EMA26_All[i] !== null) {
-                     macdLineSeries.push(EMA12_All[i] - EMA26_All[i]);
+                    macdLineSeries.push(EMA12_All[i] - EMA26_All[i]);
                 } else {
-                     macdLineSeries.push(null);
+                    macdLineSeries.push(null);
                 }
             }
             
@@ -858,12 +987,12 @@
             
             if(signalLineSeriesRaw.length > 0) {
                  for(let i = 0; i < signalLineSeriesRaw.length; i++){
-                     if(signalLineSeriesRaw[i] !== null){
-                         const originalIndex = closePrices.length - nonNullMacdLine.length + i;
-                         if (originalIndex >= 0) {
-                             signalLineSeries[originalIndex] = signalLineSeriesRaw[i];
-                         }
-                     }
+                      if(signalLineSeriesRaw[i] !== null){
+                          const originalIndex = closePrices.length - nonNullMacdLine.length + i;
+                           if (originalIndex >= 0) {
+                              signalLineSeries[originalIndex] = signalLineSeriesRaw[i];
+                           }
+                      }
                  }
             }
             
@@ -876,14 +1005,14 @@
                 macd: macdLine,
                 signal: signalLine,
                 histogram: histogram,
-                macdSeries: macdLineSeries, 
-                signalSeries: signalLineSeries 
+                macdSeries: macdLineSeries,  
+                signalSeries: signalLineSeries  
             };
         }
 
         function calculateSMA(data, period) {
             if (data.length < period) return null;
-            const sum = data.slice(-period).reduce((acc, d) => acc + d.close, 0); 
+            const sum = data.slice(-period).reduce((acc, d) => acc + d.close, 0);  
             return sum / period;
         }
 
@@ -909,7 +1038,7 @@
 
         function calculateTrendStrength(currentPrice, indicators, volumeAvg) {
             const { EMA12, EMA26, EMA50, EMA200, RSI, MACD } = indicators;
-            let score = 0; 
+            let score = 0;  
 
             if (EMA50 === null || EMA200 === null || EMA12 === null || EMA26 === null || RSI === null) {
                 return { strength: 'ข้อมูลไม่พอ', colorClass: 'strength-weak', score: 0 };
@@ -918,23 +1047,27 @@
             if (EMA50 > EMA200) score += 1;
             if (currentPrice > EMA200) score += 1;
             
-            if (EMA12 > EMA26 && EMA26 > EMA50) score += 1.5; 
+            if (EMA12 > EMA26 && EMA26 > EMA50) score += 1.5;  
 
             if (MACD.histogram !== null && MACD.histogram > 0) score += 0.5;
             
-            if (RSI > 40 && RSI < 70) score += 1; 
+            // Removed specific RSI range check for general trend strength
+            if (RSI !== null) {
+                if (RSI > 50) score += 1;  
+                else score -= 0.5;
+            }
 
-            if (volumeAvg > 0 && indicators.Volume > volumeAvg * 1.5) { 
+            if (volumeAvg > 0 && indicators.Volume > volumeAvg * 1.5) {  
                 score += 0.5;
             }
 
             let strength = '';
             let colorClass = '';
             
-            if (score >= 4.5) { 
+            if (score >= 4) {  
                 strength = 'แข็งแกร่ง (STRONG)';
                 colorClass = 'strength-strong';
-            } else if (score >= 3) {
+            } else if (score >= 2) {
                 strength = 'ปานกลาง (MODERATE)';
                 colorClass = 'strength-moderate';
             } else {
@@ -949,7 +1082,7 @@
             const { EMA50, EMA200, RSI, MACD, BB, Volume } = indicators;
             let signal = 'HOLD';
             let rationaleList = [];
-            let confidence = 0; 
+            let confidence = 0;  
             
             if (EMA50 === null || EMA200 === null) {
                 return { signal: 'HOLD', rationaleList: ["ข้อมูล EMA ระยะยาวไม่พอ"], buyTarget: 'N/A', sellTarget: 'N/A', stopLoss: 'N/A', confidence: 0 };
@@ -981,7 +1114,7 @@
             }
 
             if (volumeAvg > 0) {
-                let volStatus = `Volume: `;
+                let volStatus = `ปริมาณการซื้อขาย: `; // Cleaned: Volume -> ปริมาณการซื้อขาย
                 const volRatio = Volume / volumeAvg;
                 if (volRatio >= 1.5) volStatus += `สูงกว่าค่าเฉลี่ย 20 วันถึง ${(volRatio * 100 - 100).toFixed(0)}% (ยืนยันความแรง)`;
                 else if (volRatio >= 1.1) volStatus += `สูงกว่าค่าเฉลี่ย 20 วัน (มีการเข้า/ออกที่น่าสนใจ)`;
@@ -997,15 +1130,14 @@
                 confidence -= 1;
             }
 
-            const isBuyingZone = BB.lower !== undefined && currentPrice <= BB.lower; 
-            const isSellingZone = BB.upper !== undefined && currentPrice >= BB.upper; 
+            const isSellingZone = BB.upper !== undefined && currentPrice >= BB.upper;  
             
             const isVolumeAboveAvg = volumeAvg > 0 && Volume > volumeAvg;
 
-            const isHealthyDip = isUptrend && 
-                                     RSI > 30 && RSI < 50 && 
-                                     currentPrice > EMA200 && 
-                                     currentPrice < EMA50; 
+            const isHealthyDip = isUptrend &&  
+                                     RSI > 30 && RSI < 50 &&  
+                                     currentPrice > EMA200 &&  
+                                     currentPrice < EMA50;  
 
             if (isHealthyDip) {
                 signal = 'BUY';
@@ -1022,7 +1154,7 @@
             else if (signal !== 'STRONG BUY' && signal !== 'BUY' && isUptrend && isMACDBullishCross && isVolumeAboveAvg && currentPrice > BB.middle) {
                 signal = 'BUY';
                 rationaleList.unshift("✔ BUY (Breakout Confirmation): แนวโน้มขาขึ้น, MACD ตัดขึ้น, และ Volume ยืนยัน");
-                if (confidence > 3) { 
+                if (confidence > 3) {  
                      signal = 'STRONG BUY';
                      rationaleList[0] = "⭐ STRONG BUY (Breakout Strength): โมเมนตัมและความแรงของแนวโน้มแข็งแกร่งมาก";
                 }
@@ -1053,34 +1185,75 @@
             return { signal, rationaleList, buyTarget, sellTarget, stopLoss, confidence };
         }
         
-        function analyzeValuation(peRatio) {
-            if (peRatio === null || peRatio === undefined || peRatio <= 0) {
-                return { value: 'N/A', class: 'text-gray-500' };
+        /**
+         * CRITICAL UPDATE: analyzeValuation now prioritizes calculated PEG Ratio.
+         */
+        function analyzeValuation(peRatio, forwardPE, calculatedPegRatio) {
+            
+            // 1. Prioritize calculated PEG Ratio (Growth Stock Valuation)
+            if (calculatedPegRatio !== null && calculatedPegRatio !== undefined && calculatedPegRatio > 0 && !isNaN(calculatedPegRatio)) {
+                
+                if (calculatedPegRatio < 1.0) {
+                    return { value: 'ถูก (Undervalued) - PEG', class: 'value-good' };
+                } else if (calculatedPegRatio >= 1.0 && calculatedPegRatio <= 1.5) { // Use a slightly tighter range for 'Fair Value' for Growth
+                    return { value: 'เป็นกลาง (Fair Value) - PEG', class: 'value-neutral' };
+                } else { // calculatedPegRatio > 1.5
+                    return { value: 'แพง (Overvalued) - PEG', class: 'value-bad' };
+                }
             }
 
-            if (peRatio > 40) {
-                return { value: 'แพง (Overvalued)', class: 'value-bad' };
-            } else if (peRatio >= 20) {
-                return { value: 'เป็นกลาง (Fair Value)', class: 'value-neutral' };
-            } else {
-                return { value: 'ถูก (Undervalued)', class: 'value-good' };
+            // 2. Fallback to P/E Forward ratio comparison if PEG is missing or unusable
+            if (forwardPE !== null && forwardPE !== undefined && forwardPE > 0 && !isNaN(forwardPE)) {
+                if (forwardPE > 40) {
+                    return { value: 'แพง (Overvalued) - Fwd PE', class: 'value-bad' };
+                } else if (forwardPE >= 20) {
+                    return { value: 'เป็นกลาง (Fair Value) - Fwd PE', class: 'value-neutral' };
+                } else {
+                    return { value: 'ถูก (Undervalued) - Fwd PE', class: 'value-good' };
+                }
             }
+
+            // 3. Fallback to Trailing P/E (least reliable for Growth)
+             if (peRatio !== null && peRatio !== undefined && peRatio > 0 && !isNaN(peRatio)) {
+                if (peRatio > 40) {
+                    return { value: 'แพง (Overvalued) - TRL PE', class: 'value-bad' };
+                } else if (peRatio >= 20) {
+                    return { value: 'เป็นกลาง (Fair Value) - TRL PE', class: 'value-neutral' };
+                } else {
+                    return { value: 'ถูก (Undervalued) - TRL PE', class: 'value-good' };
+                }
+            }
+
+
+            return { value: 'N/A (ขาดข้อมูล)', class: 'text-gray-500' };
         }
         
-        // Refactored renderChart to support multiple chart instances and data subsets
+        // Function to reset zoom for a specific chart
+        window.resetZoom = function(chartId) {
+            if (chartInstance[chartId]) {
+                chartInstance[chartId].resetZoom();
+            }
+        };
+
+
+        // --- UPDATED: renderChart with Zoom/Pan configuration ---
         function renderChart(chartId, historicalDataSubset, yMin, yMax, title) {
-            const ctx = document.getElementById(chartId).getContext('2d');
+            const canvas = document.getElementById(chartId);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
             
-            const labels = historicalDataSubset.map(d => {
-                const parts = d.date.split('-'); // YYYY-MM-DD
-                return `${parts[1]}/${parts[2]}`; // MM/DD
-            });
+            // Prepare data for Line Chart (Dates as Labels, Close Prices as Data)
+            const labels = historicalDataSubset.map(d => d.date);
             const closePrices = historicalDataSubset.map(d => d.close);
-            
-            // Calculate EMA for the displayed data slice
+
+            // Prepare EMA data mapped to simple values for the line chart (using index for X)
             const allClosePrices = historicalDataSubset.map(d => d.close);
             const ema50Data = calculateEMA(null, 50, allClosePrices);
             const ema200Data = calculateEMA(null, 200, allClosePrices);
+            
+            const ema50ChartData = ema50Data;
+            const ema200ChartData = ema200Data;
 
             // Destroy existing chart instance if it exists
             if (chartInstance[chartId]) {
@@ -1088,48 +1261,45 @@
             }
 
             chartInstance[chartId] = new Chart(ctx, {
-                type: 'line',
+                type: 'line', // CRITICAL: Revert back to line chart
                 data: {
-                    labels: labels,
+                    labels: labels, // Use dates as categorical labels (safest)
                     datasets: [
                         {
                             label: 'ราคาปิด (Close Price)',
                             data: closePrices,
-                            borderColor: '#3B82F6', 
+                            borderColor: '#3B82F6',  
                             backgroundColor: 'rgba(59, 130, 246, 0.1)',
                             borderWidth: 2,
                             pointRadius: 0,
-                            fill: false,
-                            tension: 0.1,
-                            yAxisID: 'y'
+                            fill: true, // Fill area under the line
+                            tension: 0.2,
                         },
                         {
                             label: 'EMA 50',
-                            data: ema50Data,
-                            borderColor: '#FBBF24', 
+                            data: ema50ChartData,
+                            borderColor: '#FBBF24',  
                             backgroundColor: 'transparent',
-                            borderWidth: 1,
+                            borderWidth: 1.5,
                             pointRadius: 0,
                             fill: false,
-                            tension: 0.1,
-                            yAxisID: 'y'
+                            tension: 0.2,
                         },
                          {
                             label: 'EMA 200',
-                            data: ema200Data,
-                            borderColor: '#10B981', 
+                            data: ema200ChartData,
+                            borderColor: '#10B981',  
                             backgroundColor: 'transparent',
-                            borderWidth: 1,
+                            borderWidth: 1.5,
                             pointRadius: 0,
                             fill: false,
-                            tension: 0.1,
-                            yAxisID: 'y'
+                            tension: 0.2,
                         }
                     ]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false, 
+                    maintainAspectRatio: false,  
                     plugins: {
                         title: {
                             display: true,
@@ -1146,39 +1316,62 @@
                             mode: 'index',
                             intersect: false,
                             callbacks: {
-                                title: function(tooltipItems) {
-                                    const fullDate = historicalDataSubset[tooltipItems[0].dataIndex].date;
-                                    return 'Date: ' + fullDate; 
-                                },
+                                // Simple label callback for line chart
                                 label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
                                     if (context.parsed.y !== null) {
-                                        label += context.parsed.y.toFixed(2);
+                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`;
                                     }
-                                    return label;
+                                    return context.dataset.label;
+                                },
+                                title: function(tooltipItems) {
+                                    return tooltipItems[0].label; // Use the date label
                                 }
+                            }
+                        },
+                        // NEW: ZOOM CONFIGURATION
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'xy', // Enable pan on both axes
+                                threshold: 5,
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true, // Enable zooming with mouse wheel
+                                },
+                                pinch: {
+                                    enabled: true // Enable zooming with pinch gestures (touch)
+                                },
+                                drag: {
+                                    enabled: true, // Enable zooming by dragging/selecting an area
+                                    borderColor: 'rgba(59, 130, 246, 0.5)',
+                                    borderWidth: 1,
+                                    backgroundColor: 'rgba(59, 130, 246, 0.2)'
+                                },
+                                mode: 'xy', // Zoom on both axes
                             }
                         }
                     },
                     scales: {
                         x: {
-                            type: 'category',
+                            type: 'category', // CRITICAL: Use category scale to avoid external date adapter issues
                             ticks: {
                                 maxRotation: 0, 
                                 minRotation: 0,
                                 autoSkip: true,
-                                maxTicksLimit: 12, 
+                                maxTicksLimit: 10,  
                                 color: '#9CA3AF'
                             },
                             grid: {
                                 color: '#374151'
-                            }
+                            },
+                            // Allow scale to adapt with zoom/pan
+                            min: 0,
+                            max: labels.length - 1,  
                         },
                         y: {
-                            min: yMin,
+                            // Initial min/max kept for context, but zoom/pan will override
+                            min: yMin,  
                             max: yMax,
                             title: {
                                 display: true,
@@ -1196,52 +1389,21 @@
                 }
             });
         }
-
-        // NEW: Function to render news
-        function renderNews(newsData) {
-            const container = document.getElementById('latestNewsContainer');
-            if (!container) return '';
-
-            if (newsData.length === 0) {
-                return '<p class="text-gray-500 text-center py-4">ไม่พบข่าวสารล่าสุด</p>';
-            }
-
-            const newsItems = newsData.slice(0, 5).map(item => { // Show top 5
-                const date = item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toLocaleDateString('th-TH', { 
-                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-                }) : 'N/A';
-                const publisher = item.publisher || 'แหล่งข่าวไม่ระบุ';
-
-                return `
-                    <li class="mb-3 p-3 bg-gray-900 rounded-lg hover:bg-gray-800 transition duration-150 border border-gray-700">
-                        <a href="${item.link || '#'}" target="_blank" class="block">
-                            <p class="text-blue-400 font-semibold text-lg">${item.title || 'ไม่ระบุหัวข้อข่าว'}</p>
-                            <p class="text-xs text-gray-500 mt-1">${publisher} - ${date}</p>
-                        </a>
-                    </li>
-                `;
-            }).join('');
-
-            return `
-                <ul class="list-none p-0">
-                    ${newsItems}
-                </ul>
-                <p class="text-xs text-right text-gray-600 mt-2">แสดง 5 ข่าวล่าสุด (ดึงจาก yfinance)</p>
-            `;
-        }
+        // --- END UPDATED renderChart ---
 
 
+        // Overridden in the main script block to add Accordion logic
         window.runAdvancedAnalysis = async function() {
             const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase();
-            const dateInput = document.getElementById('dateInput').value.trim(); 
-            const analysisOutput = document.getElementById('analysisOutput'); 
+            // REMOVED: const dateInput = document.getElementById('dateInput').value.trim(); 
+            const analysisOutput = document.getElementById('analysisOutput');  
             const button = document.getElementById('advancedAnalysisButton');
             const strongBuyBanner = document.getElementById('strongBuyBanner');
             
             strongBuyBanner.classList.remove('active'); 
 
-            if (!symbolInput || !dateInput) {
-                analysisOutput.innerHTML = `<p class="error-message">กรุณากรอกชื่อหุ้น และวันที่ ให้ครบถ้วน</p>`;
+            if (!symbolInput) { // CHECK ONLY SYMBOL INPUT
+                analysisOutput.innerHTML = `<p class="error-message">กรุณากรอกชื่อหุ้นให้ครบถ้วน</p>`; // Updated error message
                 window.updateConnectionStatus('error');
                 return;
             }
@@ -1251,30 +1413,50 @@
             window.updateConnectionStatus('initial');
 
             try {
-                const result = await fetchStockData(symbolInput, dateInput);
+                // Pass current date to backend, which will find the latest close date
+                const today = new Date().toISOString().split('T')[0];  
+                const result = await fetchStockData(symbolInput, today);
                 
-                displayResults(result, dateInput);
+                displayResults(result, today); // Pass today's date as the target date
+
+                // --- NEW FIX: Auto-open Analysis Accordion and scroll after successful fetch/display ---
+                const content = document.getElementById('analysisOutputContent');
+                const icon = document.getElementById('analysisIcon');
+                
+                content.style.maxHeight = "3000px"; 
+                content.style.opacity = 1;
+                content.classList.add('active-accordion');
+                icon.style.transform = 'rotate(180deg)';
+                
+                // Scroll to the analysis section to show the result immediately
+                document.getElementById('analysisCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // --- END NEW FIX ---
+
             } catch (error) {
-                console.error('Analysis Error: Backend Server FAILED. This is NOT a frontend (HTML/JS) error. See details below. Check your Python/Cloud Run logs.', error); 
+                console.error('Analysis Error: Backend Server FAILED. This is NOT a frontend (HTML/JS) error. See details below. Check your Python/Cloud Run logs.', error);  
                 
                 let errorMessage = `ไม่สามารถดำเนินการวิเคราะห์ได้: ${error.message}`;
                 
-                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                if (error.message.includes('This method is not implemented') || error.message.includes('startOfDay')) {
+                    // Note: This error should no longer appear after the fix, but kept for robustness
+                    errorMessage = `**ข้อผิดพลาดกราฟ:** ${error.message}. <br>โปรดลองกดปุ่ม **เรียกใช้ AI วิเคราะห์เชิงลึก** อีกครั้ง หากยังเกิดข้อผิดพลาด ให้ตรวจสอบว่ามีการโหลด **Date Adapter** (date-fns) ในส่วน <script> ของ HTML ครบถ้วนแล้ว`;
+                }
+                else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
                     const currentBackendHost = CLOUD_RUN_HOST;
                     
                     errorMessage = `ไม่สามารถเชื่อมต่อกับ Python Backend Server ได้ที่ ${currentBackendHost}. 
-                                         โปรดตรวจสอบ: 1) Cloud Run Service กำลังรันอยู่ (Min Instances = 1) 
-                                         2) **สำคัญที่สุด:** ในไฟล์ backend_server.py ตัวแปร API_KEY ถูกตั้งค่าเป็น Environment Variable ที่ถูกต้องหรือไม่ 
-                                         3) หากยังคงเกิดข้อผิดพลาดนี้ ให้ตรวจสอบ **Cloud Run Logs** เพื่อหาข้อผิดพลาด (Status 500) ภายใน Server`;
+                                            โปรดตรวจสอบ: 1) Cloud Run Service กำลังรันอยู่ (Min Instances = 1) 
+                                            2) **สำคัญที่สุด:** ในไฟล์ backend_server.py ตัวแปร API_KEY ถูกตั้งค่าเป็น Environment Variable ที่ถูกต้องหรือไม่ 
+                                            3) หากยังคงเกิดข้อผิดพลาดนี้ ให้ตรวจสอบ **Cloud Run Logs** เพื่อหาข้อผิดพลาด (Status 500) ภายใน Server`;
                 } else if (error.message.includes('Server responded with status 404')) {
                     errorMessage = `**ไม่พบข้อมูล:** ไม่พบสัญลักษณ์หุ้น '${symbolInput}' หรือข้อมูลย้อนหลังในวันที่ที่ระบุ`;
                 } else if (error.message.includes('Server responded with status 500')) {
                     errorMessage = `**ข้อผิดพลาดภายใน Server (Status 500):** Server Backend (Python) เกิดข้อผิดพลาดรุนแรงและ Crash ทันที (เช่น \`RuntimeError\`). 
-                                         <br>**(โปรดตรวจสอบ Console Log เพื่อดู Error Stacktrace)**
-                                         <br><br>สาเหตุที่พบบ่อย: 1. **Docker/Async Logic:** คุณต้องใช้ Gunicorn Worker Class ที่รองรับ Async (ต้องมี \`--worker-class gevent\` ใน Dockerfile CMD)
-                                         2. **Gemini API Key:** Key ถูกปฏิเสธ (403)
-                                         <br>โปรดตรวจสอบ **Dockerfile CMD** และ **Cloud Run Logs** โดยละเอียด
-                                         <br>Server Error Detail: <pre class="whitespace-pre-wrap text-sm text-red-300 bg-gray-900 p-3 rounded-lg mt-2">${error.message}</pre>`;
+                                             <br>**(โปรดตรวจสอบ Console Log เพื่อดู Error Stacktrace)**
+                                             <br><br>สาเหตุที่พบบ่อย: 1. **Docker/Async Logic:** คุณต้องใช้ Gunicorn Worker Class ที่รองรับ Async (ต้องมี \`--worker-class gevent\` ใน Dockerfile CMD)
+                                             2. **Gemini API Key:** Key ถูกปฏิเสธ (403)
+                                             <br>โปรดตรวจสอบ **Dockerfile CMD** และ **Cloud Run Logs** โดยละเอียด
+                                             <br>Server Error Detail: <pre class="whitespace-pre-wrap text-sm text-red-400 bg-gray-900 p-3 rounded-lg mt-2">${error.message}</pre>`;
                 }
 
 
@@ -1290,18 +1472,16 @@
         function displayResults(result, targetDateStr) {
             const { data, isMock, companyInfo, news } = result; // Destructure news
             const analysisOutput = document.getElementById('analysisOutput');
-            const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase(); 
+            const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase();  
             const strongBuyBanner = document.getElementById('strongBuyBanner');
             
-            let targetData = data.find(d => d.date === targetDateStr);
-            let latestAvailableData = data[data.length - 1];
-            let actualAnalysisDate = targetData ? targetData.date : latestAvailableData.date;
-            let isDateAdjusted = false;
+            strongBuyBanner.classList.remove('active'); 
 
-            if (!targetData) {
-                targetData = latestAvailableData;
-                isDateAdjusted = true;
-            }
+            // Simplified logic: Rely on the last data point returned by the backend
+            let latestAvailableData = data[data.length - 1];
+            let actualAnalysisDate = latestAvailableData.date; // The date the data is actually from
+            let targetData = latestAvailableData; // The data point used for analysis
+            
 
             if (!targetData) {
                 analysisOutput.innerHTML = `<p class="error-message">**เกิดข้อผิดพลาดรุนแรง:** ไม่พบข้อมูลราคาปิดในชุดข้อมูลที่ดึงมา</p>`;
@@ -1313,24 +1493,21 @@
             const allClosePrices = data.map(d => d.close);
             const globalMinPrice = Math.min(...allClosePrices);
             const globalMaxPrice = Math.max(...allClosePrices);
-            const yMin = globalMinPrice * 0.95; 
-            const yMax = globalMaxPrice * 1.05; 
-            
-            // 3 MONTHS (approx 60 trading days)
-            const data3M = data.slice(-60);
+            const yMin = globalMinPrice * 0.95;  
+            const yMax = globalMaxPrice * 1.05;  
             
             // 1 YEAR (approx 250 trading days)
-            const data1Y = data.slice(-250); 
+            const data1Y = data.slice(-250);  
             
             // 3 YEARS (Full data returned from backend is 3y)
-            const data3Y = data; 
+            const data3Y = data;  
             
             // --- END DATA PREPARATION ---
 
 
             const currentPrice = targetData.close;
-            const previousDayData = data.slice(0, data.findIndex(d => d.date === actualAnalysisDate)).pop(); 
-            const previousClose = previousDayData ? previousDayData.close : targetData.open; 
+            const previousDayData = data.slice(0, data.findIndex(d => d.date === actualAnalysisDate)).pop();  
+            const previousClose = previousDayData ? previousDayData.close : targetData.open;  
             
             const priceChange = currentPrice - previousClose;
             const percentageChange = (priceChange / previousClose) * 100;
@@ -1368,38 +1545,92 @@
                 Volume: currentVolume,
             };
 
-            const analysis = analyzeMultiIndicatorSignal(currentPrice, indicators, volumeAvg);
-            const trendStrength = calculateTrendStrength(currentPrice, indicators, volumeAvg);
-            const valuation = analyzeValuation(companyInfo.pe_ratio);
+            // ** FIX: Call technical analysis for Targets/SL, even if signal is overridden **
+            const technicalAnalysis = analyzeMultiIndicatorSignal(currentPrice, indicators, volumeAvg);  
+            // ** NEW: OVERRIDE SIGNAL WITH AI HYBRID ANALYSIS **
+            const aiHybridResult = extractAISignal(companyInfo.summary);
+            const currentSignal = aiHybridResult.signal;  
+            // We do not use the AI Rationale list directly here, we use the raw text for the pre-wrap block.
+            
+            // --- NEW: Combine AI Rationale and Technical Rationale in SEPARATE SECTIONS ---
+            let fundamentalRationaleHTML = "";
+            const aiSummaryText = (companyInfo.summary || 'ไม่พบข้อมูลบทวิเคราะห์จาก AI').trim();
+            
+            if (aiSummaryText.length > 0) {
+                     // ** IMPROVED: Use CSS 'white-space: pre-wrap' to perfectly preserve paragraph breaks and formatting from the AI summary. **
+                     fundamentalRationaleHTML = `
+                         <div class="mt-4 border-t border-gray-600 pt-3">
+                             <p class="font-bold text-base text-yellow-400 mb-2">📊 บทวิเคราะห์ปัจจัยพื้นฐาน (AI Narrative)</p>
+                             <div class="p-3 bg-gray-800 rounded-lg border border-yellow-700/50 text-sm text-gray-300" style="white-space: pre-wrap;">
+                                 ${aiSummaryText}
+                             </div>
+                         </div>
+                       `;
+            }
 
-            const currentSignal = analysis.signal;
+            let technicalRationaleHTML = "";
+            if (technicalAnalysis.rationaleList.length > 0) {
+                technicalRationaleHTML = `
+                    <div class="mt-4 border-t border-gray-600 pt-3">
+                        <p class="font-bold text-base text-blue-400 mb-2">📈 สัญญาณทางเทคนิค (ตัวชี้วัด)</p> <!-- Cleaned -->
+                        <ul class="list-disc list-inside text-sm text-gray-300 space-y-1">
+                            ${technicalAnalysis.rationaleList.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            let finalRationaleContent = `
+                <div class="font-bold text-lg text-gray-200 mb-2">สรุปการตัดสินใจ: <span class="text-xl ${currentSignal.includes('BUY') ? 'text-green-400' : currentSignal.includes('SELL') ? 'text-red-400' : 'text-yellow-400'}">${currentSignal}</span></div>
+                <p class="text-sm text-gray-400">สัญญาณสุดท้ายถูกสรุปโดย AI โดยพิจารณาจากความขัดแย้ง/สอดคล้องของทั้งสองปัจจัย:</p>
+                ${fundamentalRationaleHTML}
+                ${technicalRationaleHTML}
+            `;
+            // --- END NEW COMBINE ---
+            
+            // NOTE: We still calculate the Technical Trend Strength for display purposes, 
+            // but the final signal is dictated by AI.
+            const trendStrength = calculateTrendStrength(currentPrice, indicators, volumeAvg);
+            
+            
+            // --- CRITICAL PEG CALCULATION AND VALUATION UPDATE ---
+            // Step 1: Calculate PEG using Forward P/E and EPS Growth (as decimal)
+            const calculatedPegRatio = calculatePegRatio(companyInfo.forward_pe, companyInfo.eps_growth);
+            // Step 2: Use the calculated PEG Ratio for Valuation Analysis
+            const valuation = analyzeValuation(companyInfo.pe_ratio, companyInfo.forward_pe, calculatedPegRatio);
+            // --- END CRITICAL PEG CALCULATION AND VALUATION UPDATE ---
+
             const currentStockName = companyInfo.name || symbolInput;
             
-            if (currentSignal === 'STRONG BUY') {
-                document.getElementById('bannerText').textContent = `⭐ STRONG BUY ALERT! (${currentStockName}) สัญญาณแข็งแกร่ง, ราคาเข้าเขตน่าซื้อ`;
+            if (currentSignal === 'STRONG BUY' || currentSignal === 'BUY') {
+                document.getElementById('bannerText').textContent = `⭐ ${currentSignal} ALERT! (${currentStockName}) สัญญาณแข็งแกร่ง`;
                 strongBuyBanner.classList.add('active');
             } else {
                 strongBuyBanner.classList.remove('active');
             }
             
-            let dateWarning = '';
-            if (isDateAdjusted) {
-                dateWarning = `<p class="warning-message mt-2">⚠️ วันที่ ${targetDateStr} ไม่ใช่วันทำการ. การวิเคราะห์จึงใช้ราคาปิดล่าสุดของ **${actualAnalysisDate}**</p>`;
-            } else if (isMock) {
-                 dateWarning = `<p class="warning-message mt-2">⚠️ ข้อมูลที่ใช้เป็น **ข้อมูลจำลอง (Mock Data)** โปรดตรวจสอบว่า Python Server ของคุณทำงานอยู่เพื่อดึงข้อมูลจริง</p>`;
-            }
+            // REMOVED: dateWarning logic
+            let mockWarning = '';
+            // Note: Remove mock warning as we are now using the DOM retrieval logic
+            // The EPS Growth display will use the final value (from Backend or DOM).
 
-            let signalClass = analysis.signal === 'BUY' ? 'buy' : analysis.signal === 'SELL' ? 'sell' : analysis.signal === 'STRONG BUY' ? 'buy' : 'hold';
+            let signalClass = currentSignal.includes('BUY') ? 'buy' : currentSignal.includes('SELL') ? 'sell' : 'hold';
 
             const peDisplay = (companyInfo.pe_ratio !== null && companyInfo.pe_ratio !== undefined && companyInfo.pe_ratio > 0)
                 ? companyInfo.pe_ratio.toFixed(2)
                 : 'N/A';
-            const epsDisplay = (companyInfo.eps !== null && companyInfo.eps !== undefined) ? companyInfo.eps.toFixed(2) : 'N/A';
             
-            const dividendYieldRaw = companyInfo.dividend_yield;
-            const dividendYieldDisplay = (dividendYieldRaw !== null && dividendYieldRaw !== undefined)
-                ? `${(dividendYieldRaw * 100).toFixed(2)}%` 
+            const forwardPEDisplay = (companyInfo.forward_pe !== null && companyInfo.forward_pe !== undefined && companyInfo.forward_pe > 0)
+                ? companyInfo.forward_pe.toFixed(2)
                 : 'N/A';
+            
+            // PEG Display now uses the calculated value (if available), otherwise falls back to N/A
+            const pegDisplay = (calculatedPegRatio !== null && calculatedPegRatio !== undefined && calculatedPegRatio > 0)
+                ? calculatedPegRatio.toFixed(2)
+                : 'N/A';
+
+
+            const epsDisplay = (companyInfo.eps !== null && companyInfo.eps !== undefined) ? companyInfo.eps.toFixed(2) : 'N/A';
             
             const cleanCompanyName = (companyInfo.name || symbolInput).replace(/\(.*\)/g, '').trim();
 
@@ -1413,214 +1644,162 @@
             const netMarginDisplay = (netMarginRaw !== null && netMarginRaw !== undefined)
                 ? `${(netMarginRaw * 100).toFixed(2)}%`
                 : 'N/A';
+            
+            const epsGrowthRaw = companyInfo.eps_growth; // ADDED: EPS Growth
+            // NOTE: This value is either from Backend or from DOM retrieval logic now.
+            const epsGrowthDisplay = (epsGrowthRaw !== null && epsGrowthRaw !== undefined)
+                ? `${(epsGrowthRaw * 100).toFixed(2)}%`
+                : 'N/A';
             // --- END NEW FINANCIAL RATIOS DISPLAY ---
 
 
             const dataAndStatsHTML = `
-                <!-- ข้อมูล ณ วันที่วิเคราะห์ (MOVED TO TOP) -->
-                <div class="card bg-gray-700 border border-gray-600">
-                    <h3 class="text-2xl font-bold text-gray-100 mb-4">ข้อมูล ณ วันที่วิเคราะห์ (Price Data)</h3>
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4 text-gray-300">
-                        <div><span class="font-semibold text-gray-400">ขนาด (Market Cap):</span> ${formatMarketCap(companyInfo.market_cap)}</div>
-                        <div><span class="font-semibold text-gray-400">กลุ่มธุรกิจ:</span> ${companyInfo.sector || 'N/A'}</div>
-                        <div><span class="font-semibold text-gray-400">อุตสาหกรรม:</span> ${companyInfo.industry || 'N/A'}</div>
-                        <div><span class="font-semibold text-gray-400">ตลาด:</span> ${companyInfo.exchange || 'N/A'}</div>
-                    </div>
+                 <!-- Price Data and Core Metrics (Condensed for Mobile) -->
+                 <div class="bg-gray-800 rounded-lg p-3 mb-4 border border-blue-600/50">
+                    <h4 class="text-lg font-bold text-gray-100 mb-2">ราคาและข้อมูลหลัก ณ ${actualAnalysisDate}</h4>
                     
-                    <div class="info-header mt-4">ราคาปิด ณ วันที่ ${actualAnalysisDate}</div>
-                    <p class="text-lg font-semibold mb-2 text-gray-200 flex items-center">
-                        ราคา: 
+                    <p class="text-2xl font-semibold mb-2 text-gray-200 flex items-center justify-between">
+                        ราคาปิด: 
                         <span class="target-price text-3xl text-blue-400 ml-2">${currentPrice.toFixed(2)}</span>
-                        <span class="ml-3 text-lg font-semibold ${changeColorClass}">${priceChangeDisplay}</span>
+                    </p>
+                    <p class="text-base font-semibold ${changeColorClass} mb-3">
+                         ${priceChangeDisplay}
                     </p>
 
-                    <div class="grid grid-cols-2 gap-4 text-sm text-gray-300 border-t border-gray-600 pt-3 mt-3">
-                        <div><span class="font-semibold text-gray-400">Open:</span> ${targetData.open ? targetData.open.toFixed(2) : 'N/A'}</div>
-                        <div><span class="font-semibold text-gray-400">High:</span> ${targetData.high ? targetData.high.toFixed(2) : 'N/A'}</div>
-                        <div><span class="font-semibold text-gray-400">Low:</span> ${targetData.low ? targetData.low.toFixed(2) : 'N/A'}</div>
-                        <div><span class="font-semibold text-gray-400">Volume:</span> ${targetData.volume ? targetData.volume.toLocaleString() : 'N/A'}</div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-400 border-t border-gray-700 pt-3">
+                        <div><span class="font-semibold text-gray-400">เปิด/สูง/ต่ำ:</span> ${targetData.open ? targetData.open.toFixed(2) : 'N/A'} / ${targetData.high ? targetData.high.toFixed(2) : 'N/A'} / ${targetData.low ? targetData.low.toFixed(2) : 'N/A'}</div> <!-- Cleaned: Open/High/Low -->
+                        <div><span class="font-semibold text-gray-400">ปริมาณการซื้อขาย:</span> ${targetData.volume ? formatMarketCap(targetData.volume) : 'N/A'}</div> <!-- Cleaned: Volume -->
+                        <div><span class="font-semibold text-gray-400">มูลค่าตลาด:</span> ${formatMarketCap(companyInfo.market_cap)}</div> <!-- Cleaned: Market Cap -->
+                        <div><span class="font-semibold text-gray-400">อุตสาหกรรม/หมวดธุรกิจ:</span> ${companyInfo.sector || 'N/A'} / ${companyInfo.industry || 'N/A'}</div> <!-- Cleaned: Sector/Industry -->
                     </div>
                 </div>
-                
-                <!-- NEW: MULTIPLE CHARTS CONTAINER -->
-                <div class="card bg-gray-700 border border-gray-600 space-y-8">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-600 pb-2">กราฟราคาและแนวโน้ม (เปรียบเทียบระยะเวลา)</h3>
+
+
+                <!-- Analysis Card: Signal and Targets -->
+                <div class="bg-gray-800 rounded-lg p-4 border border-green-600/50 mb-4">
+                    <h3 class="text-xl font-bold text-gray-100 mb-4">สรุปสัญญาณซื้อขาย</h3>
                     
-                    <!-- Chart 1: 3 MONTHS -->
-                    <div>
-                        <div class="chart-container-wrapper">
-                            <div class="chart-container-inner">
-                                <canvas id="stockChart3M"></canvas>
-                            </div>
+                    <div class="flex items-center justify-between mb-3 border-b border-gray-700 pb-3">
+                        <p class="text-lg text-gray-200">สัญญาณ: <span id="tradeSignal" class="signal-box ${signalClass}">${currentSignal}</span></p>
+                        <p class="text-sm font-semibold text-gray-200 text-right">ความมั่นใจแนวโน้ม: 
+                            <span class="strength-indicator ${trendStrength.colorClass}">${trendStrength.strength}</span>
+                        </p>
+                    </div>
+                    
+                    <!-- Targets/Stop Loss (Simplified for Mobile) -->
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div class="p-2 bg-gray-900 rounded-lg border border-blue-700">
+                            <p class="text-xs font-medium text-blue-400">ราคาเป้าหมาย (ซื้อ)</p> <!-- Cleaned: เป้าซื้อ -> ราคาเป้าหมาย (ซื้อ) -->
+                            <p id="buyTarget" class="target-price text-lg">${technicalAnalysis.buyTarget}</p>
+                            <p class="text-xs text-gray-500">(แนวรับ)</p>
+                        </div>
+                        <div class="p-2 bg-gray-900 rounded-lg border border-red-700">
+                            <p class="text-xs font-medium text-red-400">จุดตัดขาดทุน</p> <!-- Cleaned: Stop Loss -> จุดตัดขาดทุน -->
+                            <p id="stopLoss" class="target-price text-lg text-red-400">${technicalAnalysis.stopLoss}</p>
+                            <p class="text-xs text-gray-500">(Lower BB / EMA 50)</p>
+                        </div>
+                        <div class="p-2 bg-gray-900 rounded-lg border border-green-700">
+                            <p class="text-xs font-medium text-green-400">ราคาเป้าหมาย (ขาย)</p> <!-- Cleaned: เป้าขาย -> ราคาเป้าหมาย (ขาย) -->
+                            <p id="sellTarget" class="target-price text-lg text-green-400">${technicalAnalysis.sellTarget}</p>
+                            <p class="text-xs text-gray-500">(แนวต้าน)</p>
                         </div>
                     </div>
 
-                    <!-- Chart 2: 1 YEAR -->
-                    <div>
+                    <div class="mt-4">
+                         ${finalRationaleContent}
+                    </div>
+
+                </div>
+
+                <!-- Valuation and Ratios -->
+                <div class="bg-gray-800 rounded-lg p-4 border border-yellow-600/50 mb-4">
+                    <h3 class="text-xl font-bold text-gray-100 mb-4">มูลค่า และ ตัวชี้วัด</h3> <!-- Cleaned: Valuation and Indicators -->
+
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <!-- Valuation -->
+                        <div class="bg-gray-900 p-2 rounded-lg">
+                            <span class="block text-xs font-semibold text-gray-400">มูลค่า:</span> <!-- Cleaned: Valuation -->
+                            <span class="text-lg ${valuation.class} font-bold mt-1">(${valuation.value.split(' - ')[0]})</span>
+                            <span class="block text-xs font-semibold mt-1 text-gray-500">${valuation.value.includes('-') ? `(${valuation.value.split(' - ')[1]})` : ''}</span>
+                        </div>
+                        <!-- PEG Ratio -->
+                        <div class="bg-gray-900 p-2 rounded-lg">
+                            <span class="block text-xs font-semibold text-gray-400">PEG Ratio</span>
+                            <span class="text-xl text-yellow-400 font-bold">${pegDisplay}</span>
+                            <span class="block text-xs font-semibold mt-1 text-gray-500">(เน้นการเติบโต)</span> <!-- Cleaned: Growth Focus -->
+                        </div>
+                         <!-- Forward P/E -->
+                        <div class="bg-gray-900 p-2 rounded-lg">
+                            <span class="block text-xs font-semibold text-gray-400">P/E (คาดการณ์)</span> <!-- Cleaned: Forward P/E -->
+                            <span class="text-xl text-green-400 font-bold">${forwardPEDisplay}</span>
+                            <span class="block text-xs font-semibold mt-1 text-gray-500">(อัตราส่วนราคาต่อกำไร)</span> <!-- Cleaned: คาดการณ์ -->
+                        </div>
+                         <!-- EPS Growth -->
+                        <div class="bg-gray-900 p-2 rounded-lg">
+                            <span class="block text-xs font-semibold text-gray-400">การเติบโตของ EPS (YoY)</span> <!-- Cleaned: EPS Growth (YoY) -->
+                            <span class="text-xl text-yellow-400 font-bold">${epsGrowthDisplay}</span>
+                            <span class="block text-xs font-semibold mt-1 text-gray-500">(ประมาณการ)</span> <!-- Cleaned: คาดการณ์ -->
+                        </div>
+                        <!-- ROE -->
+                        <div class="bg-gray-900 p-2 rounded-lg">
+                            <span class="block text-xs font-semibold text-gray-400">ROE</span>
+                            <span class="text-xl text-yellow-400 font-bold">${roeDisplay}</span>
+                            <span class="block text-xs font-semibold mt-1 text-gray-500">(ผลตอบแทนต่อทุน)</span>
+                        </div>
+                        <!-- Net Margin -->
+                        <div class="bg-gray-900 p-2 rounded-lg">
+                            <span class="block text-xs font-semibold text-gray-400">อัตรากำไรสุทธิ</span> <!-- Cleaned: Net Margin -->
+                            <span class="text-xl text-yellow-400 font-bold">${netMarginDisplay}</span>
+                            <span class="block text-xs font-semibold mt-1 text-gray-500">(Net Margin)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Container -->
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-700 pb-2">กราฟราคาและแนวโน้ม</h3>
+                    
+                    <!-- Chart 1: 1 YEAR -->
+                    <div class="mb-6">
                         <div class="chart-container-wrapper">
-                            <div class="chart-container-inner">
+                            <div class="chart-container-inner" style="height: 300px;">
                                 <canvas id="stockChart1Y"></canvas>
                             </div>
                         </div>
+                        <div class="text-center">
+                            <button onclick="window.resetZoom('stockChart1Y')" class="reset-button text-xs">รีเซ็ต Zoom 1 ปี</button>
+                        </div>
                     </div>
 
-                    <!-- NEW: Chart 3: 3 YEARS -->
+                    <!-- Chart 2: 3 YEARS -->
                     <div>
                         <div class="chart-container-wrapper">
-                            <div class="chart-container-inner">
+                            <div class="chart-container-inner" style="height: 300px;">
                                 <canvas id="stockChart3Y"></canvas>
                             </div>
                         </div>
-                    </div>
-                    <!-- END NEW CHART -->
-                </div>
-            `;
-
-
-            const analysisAndSignalHTML = `
-                <div class="card bg-red-900/40 border-red-700/50">
-                    <h3 class="text-2xl font-bold text-gray-100 mb-4">สรุปสัญญาณซื้อขาย</h3>
-                    
-                    <div class="summary-card bg-gray-800 border border-gray-700">
-                        <div class="flex items-center justify-between mt-3">
-                            <p class="text-xl text-gray-200">สัญญาณ: <span id="tradeSignal" class="signal-box ${signalClass} text-2xl">${analysis.signal}</span></p>
-                            <p class="text-xl font-semibold text-gray-200">ความมั่นใจแนวโน้ม: 
-                                <span class="strength-indicator ${trendStrength.colorClass}">${trendStrength.strength}</span>
-                            </p>
-                        </div>
-                        
-                        <div class="mt-6 border-t border-gray-600 pt-4">
-                            <p class="font-bold text-gray-200 mb-2">เหตุผลและปัจจัยยืนยัน:</p>
-                            <ul class="list-disc list-inside text-sm text-gray-300 space-y-1">
-                                ${analysis.rationaleList.map(r => `<li>${r}</li>`).join('')}
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-center">
-                        <div class="p-4 bg-blue-900/40 rounded-lg border border-blue-800">
-                            <p class="text-sm font-medium text-blue-400">เป้าหมายเข้าซื้อ</p>
-                            <p id="buyTarget" class="target-price text-2xl text-blue-400">${analysis.buyTarget}</p>
-                            <p class="text-xs text-gray-400 mt-1">(Lower BB / แนวรับ)</p>
-                        </div>
-                        <div class="p-4 bg-red-900/40 rounded-lg border border-red-800">
-                            <p class="text-sm font-medium text-red-400">จุดตัดขาดทุน (Stop Loss)</p>
-                            <p id="stopLoss" class="target-price text-2xl text-red-400">${analysis.stopLoss}</p>
-                            <p class="text-xs text-gray-400 mt-1">(Lower BB หรือ EMA 50 ที่น้อยกว่า)</p>
-                        </div>
-                        <div class="p-4 bg-green-900/40 rounded-lg border border-green-800">
-                            <p class="text-sm font-medium text-green-400">เป้าหมายขาย/ทำกำไร</p>
-                            <p id="sellTarget" class="target-price text-2xl text-green-400">${analysis.sellTarget}</p>
-                            <p class="text-xs text-gray-400 mt-1">(Upper BB / แนวต้าน)</p>
+                        <div class="text-center">
+                            <button onclick="window.resetZoom('stockChart3Y')" class="reset-button text-xs">รีเซ็ต Zoom 3 ปี</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="card bg-gray-700 border border-gray-600">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4">Valuation และบทสรุป AI</h3>
-
-                    <div class="grid grid-cols-3 gap-x-4 p-4 bg-gray-800 rounded-xl border border-blue-700 shadow-inner">
-                        <div class="text-center">
-                            <span class="block text-xs font-semibold text-gray-400">Trailing P/E Ratio</span>
-                            <span class="text-xl ${valuation.class}">${peDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 ${valuation.class}">(${valuation.value})</span>
-                        </div>
-                        <div class="text-center">
-                            <span class="block text-xs font-semibold text-gray-400">EPS (ต่อหุ้น)</span>
-                            <span class="text-xl text-gray-100 font-bold">${epsDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-400">(Trailing 12M)</span>
-                        </div>
-                        <div class="text-center">
-                            <span class="block text-xs font-semibold text-gray-400">Dividend Yield</span>
-                            <span class="text-xl text-green-400 font-bold">${dividendYieldDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-400">(ผลตอบแทนปันผล)</span>
-                        </div>
-                    </div>
-                    
-                    <!-- NEW: ROE and Net Margin Display -->
-                    <div class="grid grid-cols-2 gap-x-4 p-4 bg-gray-900 rounded-xl border border-gray-600 shadow-inner mt-4">
-                        <div class="text-center">
-                            <span class="block text-xs font-semibold text-gray-400">ROE (Return on Equity)</span>
-                            <span class="text-xl text-yellow-400 font-bold">${roeDisplay}</span>
-                        </div>
-                        <div class="text-center">
-                            <span class="block text-xs font-semibold text-gray-400">Net Margin</span>
-                            <span class="text-xl text-yellow-400 font-bold">${netMarginDisplay}</span>
-                        </div>
-                    </div>
-                    <!-- END NEW -->
-
-                    <div class="info-header mt-6">สรุปธุรกิจ (AI Analysis Summary):</div>
-                    <p class="text-sm text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">${companyInfo.summary || 'ไม่พบข้อมูลสรุปธุรกิจ'}</p>
-                </div>
-                
-                <!-- NEW: LATEST NEWS CONTAINER -->
-                <div class="card bg-gray-700 border border-gray-600">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-600 pb-2">📰 ข่าวสารล่าสุด</h3>
-                    <div id="latestNewsContainer">
-                        <!-- News will be rendered here -->
-                    </div>
-                </div>
-
-
-                <div class="card bg-gray-800 p-4 border border-gray-700">
-                    <h3 class="text-lg font-bold text-gray-100 mb-3">ค่า Technical Indicators</h3>
-                    <div class="grid grid-cols-2 gap-y-3 gap-x-2 text-sm text-gray-300">
-                        <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">RSI 14:</span></div>
-                        <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.RSI !== null ? indicators.RSI.toFixed(2) : 'N/A'}</span></div>
-                        
-                        <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">EMA 50:</span></div>
-                        <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.EMA50 !== null ? indicators.EMA50.toFixed(2) : 'N/A'}</span></div>
-                        
-                        <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">BB Upper:</span></div>
-                        <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.BB.upper !== undefined ? indicators.BB.upper.toFixed(2) : 'N/A'}</span></div>
-                        
-                        <div class="border-b border-gray-600 pb-1"><span class="font-semibold text-gray-400">BB Lower:</span></div>
-                        <div class="border-b border-gray-600 pb-1"><span class="indicator-value">${indicators.BB.lower !== undefined ? indicators.BB.lower.toFixed(2) : 'N/A'}</span></div>
-                        
-                        <div class="pt-1"><span class="font-semibold text-gray-400">MACD Hist.:</span></div>
-                        <div class="pt-1"><span class="indicator-value">${indicators.MACD.histogram !== null ? indicators.MACD.histogram.toFixed(2) : 'N/A'}</span></div>
-                    </div>
-                </div>
             `;
             
-            // REMOVED HEADERS
-            analysisOutput.innerHTML = `
-                ${dateWarning}
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-                    <div class="space-y-6">
-                        ${dataAndStatsHTML}
-                    </div>
-
-                    <div class="space-y-6">
-                        ${analysisAndSignalHTML}
-                    </div>
-                </div>
-            `;
+            analysisOutput.innerHTML = dataAndStatsHTML;
             // Call renderChart for each period
-            renderChart('stockChart3M', data3M, yMin, yMax, 'กราฟราคา 3 เดือน');
-            renderChart('stockChart1Y', data1Y, yMin, yMax, 'กราฟราคา 1 ปี');
-            renderChart('stockChart3Y', data3Y, yMin, yMax, 'กราฟราคา 3 ปี (ข้อมูลทั้งหมด)'); // NEW CHART CALL
+            renderChart('stockChart1Y', data1Y, yMin, yMax, `${symbolInput} - กราฟราคา 1 ปี`);
+            renderChart('stockChart3Y', data3Y, yMin, yMax, `${symbolInput} - กราฟราคา 3 ปี`);  
             
-            // Render News
-            document.getElementById('latestNewsContainer').innerHTML = renderNews(news);
-
         }
         
-        function setInitialDate() {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const dateStr = tomorrow.toISOString().split('T')[0];
-            document.getElementById('dateInput').value = dateStr;
-        }
-
         function setupStockDatalist() {
             const datalist = document.createElement('datalist');
             datalist.id = 'stockSuggestions';
             MOCK_TICKERS.forEach(ticker => {
                 const option = document.createElement('option');
-                option.value = ticker.split(' - ')[0]; 
-                option.textContent = ticker;         
+                option.value = ticker.split(' - ')[0];  
+                option.textContent = ticker;          
                 datalist.appendChild(option);
             });
             document.body.appendChild(datalist);
@@ -1656,117 +1835,208 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            setupStockDatalist(); 
-            setInitialDate();
+            setupStockDatalist();  
             setupTickerExamples(); // Setup the new feature
             
             // Attach runAdvancedAnalysis to the button
-            document.getElementById('advancedAnalysisButton').addEventListener('click', window.runAdvancedAnalysis); 
-            document.getElementById('addToWatchlistButton').addEventListener('click', window.addTickerToWatchlist); 
+            document.getElementById('advancedAnalysisButton').addEventListener('click', window.runAdvancedAnalysis);  
+            document.getElementById('addToWatchlistButton').addEventListener('click', window.addTickerToWatchlist);  
 
             // Initialize Firebase and start listening to Watchlist
-            initFirebase(); 
+            initFirebase();  
             
             const initialSymbol = document.getElementById('symbolInput').value;
             if (initialSymbol) {
                 fetchAndDisplayBasicInfo(initialSymbol);
             }
         });
-    </script>
+    </script> 
 </head>
-<body class="p-4 sm:p-8">
+<body>
+    <!-- Strong Buy/Sell Banner (Sticky to Top) -->
     <div id="strongBuyBanner" class="text-lg">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" viewBox="0 0 20 20" fill="currentColor">
             <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
         </svg>
         <span id="bannerText"></span>
     </div>
-    
+
+    <!-- Connection Status Indicator (Fixed to Top Right) -->
     <div id="connectionStatusContainer">
         <div id="connectionStatusIcon" class="status-icon status-initial">
-             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.554 2.656-1.554 3.42 0L15.46 11.2a1.75 1.75 0 01-1.574 2.55H6.114a1.75 1.75 0 01-1.573-2.55l3.42-8.101zM10 14a1 1 0 100 2 1 1 0 000-2zm-1-6a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd" />
-            </svg>
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.554 2.656-1.554 3.42 0L15.46 11.2a1.75 1.75 0 01-1.574 2.55H6.114a1.75 1.75 0 01-1.573-2.55l3.42-8.101zM10 14a1 1 0 100 2 1 1 0 000-2zm-1-6a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd" />
+             </svg>
         </div>
     </div>
 
-
+    <!-- MAIN APP CONTAINER -->
     <div class="container-wrapper">
         <!-- ---------------------------------------------------- -->
-        <!-- NEW: WATCHLIST & INPUT SECTION -->
+        <!-- INPUT & ACTION SECTION (Always visible at the top) -->
         <!-- ---------------------------------------------------- -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            
-            <!-- Ticker Input and Guide (Col 1) -->
-            <div class="card space-y-3 p-4">
-                <div class="flex justify-between items-end">
-                    <label for="symbolInput" class="block text-xs font-medium text-gray-400 mb-1">สัญลักษณ์หุ้น (Ticker Symbol)</label>
-                    <button id="toggleTickerExamples" class="text-xs text-blue-400 hover:text-blue-300 font-semibold transition duration-150">
-                        [ดูตัวอย่าง]
-                    </button>
-                </div>
-                <input type="text" id="symbolInput" oninput="window.handleSymbolInput(this.value)" class="w-full p-2 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="GOOG" value="GOOG" list="stockSuggestions">
-                
-                <div class="flex space-x-2">
-                    <button id="addToWatchlistButton" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-150 text-sm flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-                        </svg>
-                        เพิ่มเข้า Watchlist
-                    </button>
-                </div>
-                <!-- NEW: Temporary message box for watchlist actions -->
-                <div id="watchlistMessage" class="mt-2"></div>
-
-                <div id="tickerExamples" class="p-3 bg-gray-900 rounded-lg text-xs hidden border border-blue-700/50">
-                    <!-- Ticker examples content goes here via JS -->
-                </div>
-                
-                <div class="hidden">
-                    <label for="dateInput" class="block text-sm font-medium text-gray-300 mb-1">วันที่วิเคราะห์เชิงเทคนิค</label>
-                    <input type="date" id="dateInput" class="w-full p-3 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                </div>
+        <div class="card app-header"> <!-- HTML FIX: Removed redundant inline style 'style="margin: 0;"' -->
+            <div class="flex justify-between items-end">
+                <label for="symbolInput" class="block text-xs font-medium text-gray-400 mb-1">สัญลักษณ์หุ้น (Ticker)</label>
+                <button id="toggleTickerExamples" class="text-xs text-blue-400 hover:text-blue-300 font-semibold transition duration-150">
+                    [ดูตัวอย่าง]
+                </button>
             </div>
-
-            <!-- Watchlist Display (Col 2 & 3 - takes 2/3 width) -->
-            <div class="card lg:col-span-2">
-                <div class="flex justify-between items-center mb-3 border-b border-gray-600 pb-2">
-                    <h3 class="text-xl font-bold text-gray-100">Watchlist (รายการเฝ้าดู)</h3>
+            <div class="flex space-x-2 mb-3">
+                 <input type="text" id="symbolInput" oninput="window.handleSymbolInput(this.value)" class="flex-grow p-2 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-2xl" placeholder="GOOG" value="GOOG" list="stockSuggestions">
+                 <button id="addToWatchlistButton" class="p-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-150 text-sm flex items-center justify-center flex-shrink-0" style="width: 48px; height: 48px;">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                         <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                     </svg>
+                 </button>
+            </div>
+            <!-- Ticker Examples (Hidden by default) -->
+            <div id="tickerExamples" class="p-3 bg-gray-900 rounded-lg text-xs hidden border border-blue-700/50">
+                <!-- Ticker examples content goes here via JS -->
+            </div>
+            <!-- Temporary message box for watchlist actions -->
+            <div id="watchlistMessage" class="mt-2"></div>
+            
+            <!-- --- WATCHLIST (MOVED TO STICKY HEADER) --- -->
+            <div class="mt-4 pt-4 border-t border-gray-700">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xl font-bold text-gray-100">รายการเฝ้าดู</h3> <!-- Cleaned -->
                     <p id="userIdDisplay" class="text-xs text-gray-500"></p>
                 </div>
-                <div id="watchlistList" class="max-h-60 overflow-y-auto">
+                <div id="watchlistList" class="max-h-60 overflow-y-auto space-y-2 p-3 bg-gray-900 rounded-lg border border-gray-700">
                     <!-- Watchlist items rendered here by Firebase Listener -->
-                    <p class="text-gray-500 text-center py-4">กำลังโหลด Watchlist...</p>
+                    <p class="text-gray-500 text-center py-4">กำลังโหลดรายการเฝ้าดู...</p> <!-- Cleaned -->
+                </div>
+            </div>
+            <!-- --- END WATCHLIST --- -->
+        </div>
+
+        <!-- FIXED ACTION BUTTON (Mobile-friendly fixed at the bottom) -->
+        <div id="fixedActionButtonContainer">
+             <button id="advancedAnalysisButton" onclick="window.runAdvancedAnalysis()" disabled class="bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl shadow-lg transition duration-150 ease-in-out">
+                 🚨 เรียกใช้ AI วิเคราะห์เชิงลึก <!-- Cleaned -->
+             </button>
+        </div>
+        <!-- END FIXED ACTION BUTTON -->
+
+
+        <!-- ---------------------------------------------------- -->
+        <!-- ACCORDION SECTION 1: ข้อมูลพื้นฐาน -->
+        <!-- ---------------------------------------------------- -->
+        <div class="mt-4">
+            <div class="card p-0" id="basicInfoCard">
+                <div class="accordion-header flex justify-between items-center" onclick="toggleAccordion('basicInfoContent', 'basicInfoIcon')">
+                    <h3 class="text-lg font-bold text-gray-100">1. ข้อมูลพื้นฐานของบริษัท</h3> <!-- Cleaned: และบริษัท -> ของบริษัท -->
+                    <svg id="basicInfoIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="basicInfoContent" class="accordion-content max-h-0 opacity-0 px-4">
+                    <div id="basicInfoDisplay">
+                        <p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800 text-center">กรุณากรอกสัญลักษณ์หุ้น เพื่อดึงข้อมูลพื้นฐาน</p>
+                    </div>
                 </div>
             </div>
         </div>
-        <!-- ---------------------------------------------------- -->
-        <!-- END: WATCHLIST & INPUT SECTION -->
-        <!-- ---------------------------------------------------- -->
+        
 
-
-        <div class="mt-8">
-            <h2 class="analysis-section-title">ข้อมูลพื้นฐาน (Present Information)</h2>
-            <div id="basicInfoDisplay">
-                <p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800 text-center">กรุณากรอกสัญลักษณ์หุ้น เพื่อดึงข้อมูลพื้นฐาน</p>
+        <!-- ---------------------------------------------------- -->
+        <!-- ACCORDION SECTION 2: ผลการวิเคราะห์ขั้นสูง -->
+        <!-- ---------------------------------------------------- -->
+        <div class="mt-4">
+            <div class="card p-0" id="analysisCard">
+                <div class="accordion-header flex justify-between items-center" onclick="toggleAccordion('analysisOutputContent', 'analysisIcon')">
+                    <h3 class="text-lg font-bold text-gray-100">2. ผลวิเคราะห์และสัญญาณซื้อขาย</h3> <!-- Cleaned: AI & สัญญาณซื้อขาย -> AI และสัญญาณซื้อขาย -->
+                    <svg id="analysisIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="analysisOutputContent" class="accordion-content max-h-0 opacity-0 px-4">
+                    <div id="analysisOutput">
+                        <p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800">กดปุ่ม **เรียกใช้ AI วิเคราะห์เชิงลึก** ด้านล่าง</p> <!-- Cleaned -->
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div class="mt-8">
-            <h2 class="analysis-section-title">ผลการวิเคราะห์ขั้นสูง (Advanced Analysis)</h2>
-            <div id="analysisOutput">
-                <p class="text-gray-400 p-4 border border-gray-700 rounded-lg bg-gray-800">กดปุ่ม **Advanced Analysis** เพื่อเรียกใช้ Technical Indicators, กราฟราคา และบทวิเคราะห์ AI</p>
-            </div>
-        </div>
-
-        <div class="mt-8 text-center">
-            <!-- เปลี่ยนสีปุ่มเป็นสีเขียว -->
-            <button id="advancedAnalysisButton" onclick="window.runAdvancedAnalysis()" disabled class="w-full md:w-1/2 lg:w-1/3 py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition duration-150 ease-in-out text-lg">
-                🚨 Advanced AI Analysis
-            </button>
-        </div>
-
     </div>
+
+    <!-- ACCORDION JAVASCRIPT LOGIC -->
+    <script>
+        function toggleAccordion(contentId, iconId) {
+            const content = document.getElementById(contentId);
+            const icon = document.getElementById(iconId);
+            
+            // Check if element is currently visible (expanded)
+            const isExpanded = content.classList.contains('active-accordion');
+
+            if (isExpanded) {
+                // Collapse logic
+                content.style.maxHeight = null;
+                content.style.opacity = 0;
+                content.classList.remove('active-accordion');
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                // Expand logic
+                // Temporarily set a large max-height before getting the actual scroll height
+                content.style.maxHeight = "3000px"; 
+                content.style.opacity = 1;
+                content.classList.add('active-accordion');
+                icon.style.transform = 'rotate(180deg)';
+            }
+        }
+        
+        // Initial state for the accordions
+        document.addEventListener('DOMContentLoaded', () => {
+             // Set up click listeners for the accordion headers
+             // Initial accordion state: collapsed.
+             document.getElementById('basicInfoContent').style.maxHeight = null;
+             document.getElementById('analysisOutputContent').style.maxHeight = null;
+
+             // Ensure initial info is fetched on load, and open the Basic Info Accordion
+             const initialSymbol = document.getElementById('symbolInput').value;
+             if (initialSymbol) {
+                 // Open basic info accordion by default if a symbol is present
+                 const content = document.getElementById('basicInfoContent');
+                 content.style.maxHeight = "3000px"; // Use a large fixed value for initialization
+                 content.style.opacity = 1;
+                 content.classList.add('active-accordion');
+                 document.getElementById('basicInfoIcon').style.transform = 'rotate(180deg)';
+             }
+        });
+
+        // Override original handleSymbolInput to re-open accordion on fetch
+        const originalHandleSymbolInput = window.handleSymbolInput;
+        window.handleSymbolInput = function(symbol) {
+             originalHandleSymbolInput(symbol);
+             // Ensure basic info accordion is open when a new symbol is entered
+             const content = document.getElementById('basicInfoContent');
+             const icon = document.getElementById('basicInfoIcon');
+             if (!content.classList.contains('active-accordion')) {
+                 content.style.maxHeight = "3000px";
+                 content.style.opacity = 1;
+                 content.classList.add('active-accordion');
+                 icon.style.transform = 'rotate(180deg)';
+             }
+        }
+
+        // Override original runAdvancedAnalysis to open the Analysis Accordion
+        const originalRunAdvancedAnalysis = window.runAdvancedAnalysis;
+        window.runAdvancedAnalysis = async function() {
+             await originalRunAdvancedAnalysis();
+             // Ensure analysis accordion is open after running the analysis
+             const content = document.getElementById('analysisOutputContent');
+             const icon = document.getElementById('analysisIcon');
+             
+             // --- FIX: Logic to open the accordion has been moved inside the try block of runAdvancedAnalysis (after displayResults) ---
+             // --- The redundant logic here is removed, but the function definition remains for compatibility ---
+             
+             /* if (!content.classList.contains('active-accordion')) {
+                 content.style.maxHeight = "3000px"; 
+                 content.style.opacity = 1;
+                 content.classList.add('active-accordion');
+                 icon.style.transform = 'rotate(180deg)';
+                 
+                 // Scroll to the analysis section to show the result immediately
+                 document.getElementById('analysisCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+             }
+             */
+        }
+    </script>
 </body>
 </html>
-
