@@ -158,7 +158,7 @@
             padding: 12px;
             border-radius: 8px;
         }
-       
+        
         /* Chart container styling */
         .chart-container-inner {
             width: 100%;
@@ -172,12 +172,12 @@
              font-weight: 600;
              margin-top: 8px;
              transition: background-color 0.15s;
-         }
-         .reset-button:hover {
-             background-color: #6b7280;
-         }
-         
-         /* Removed unnecessary Temporary Message styles as Watchlist is removed */
+          }
+          .reset-button:hover {
+              background-color: #6b7280;
+          }
+          
+        /* Removed unnecessary Temporary Message styles as Watchlist is removed */
     </style>
     <!-- Use type="module" for core logic -->
     <script type="module">
@@ -203,13 +203,6 @@
         let chartInstance = {}; // เปลี่ยนจาก null เป็น Object เพื่อเก็บหลาย Instance ของ Chart.js
         let debounceTimer; // สำหรับ debounce การค้นหาหุ้นอัตโนมัติ
         
-        /**
-         * Utility function to delay execution asynchronously.
-         */
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
-
         // --- UTILITY FUNCTIONS (Made global for HTML access) ---
 
         window.updateConnectionStatus = function(status) {
@@ -318,123 +311,86 @@
             
             const dataUrl = BACKEND_BASE_URL;
 
-            let lastError = null;
-            const maxRetries = 3; 
-
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-                if (attempt > 0) {
-                    const delay = Math.pow(2, attempt) * 1000; // Exponential delay: 2s, 4s
-                    console.warn(`[FRONTEND] Server responded with an error, retrying fetch in ${delay / 1000} seconds (Attempt ${attempt + 1}/${maxRetries})...`);
-                    await sleep(delay);
+            console.log(`[FRONTEND] Sending POST request to ${dataUrl} with payload:`, payload);
+            const response = await fetch(dataUrl, {
+                method: 'POST',  
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            console.log(`[FRONTEND] Received response status: ${response.status}`);
+            
+            if (!response.ok) {
+                const contentType = response.headers.get("content-type");
+                let errorBody = 'No detailed error message.';
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const errorJson = await response.json().catch(() => ({ error: 'Unknown server error.' }));
+                    errorBody = errorJson.error || errorJson.message || JSON.stringify(errorJson);
+                } else if (contentType && contentType.indexOf("text/html") !== -1) {
+                    errorBody = await response.text();
+                    errorBody = `HTML Error (Check Backend Logs): ${errorBody.substring(0, 100)}...`; 
                 }
                 
-                try {
-                    console.log(`[FRONTEND] Sending POST request to ${dataUrl} with payload:`, payload);
-                    const response = await fetch(dataUrl, {
-                        method: 'POST',  
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(payload),
-                    });
-                    console.log(`[FRONTEND] Received response status: ${response.status}`);
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        
-                        if (!result.analysis) {  
-                             throw new Error("Backend ไม่ได้ส่งข้อมูลบทวิเคราะห์ที่จำเป็นกลับมา.");
-                        }
-                        
-                        window.updateConnectionStatus('success');
-                        
-                        // --- CRITICAL FIX: Get EPS Growth from DOM if backend result is null/missing/N/A ---
-                        let epsGrowth = result.eps_growth;
-                        
-                        if (epsGrowth === null || epsGrowth === undefined || isNaN(epsGrowth) || epsGrowth === 0) {
-                             console.warn("EPS Growth is missing/invalid from backend response 2. Attempting to retrieve from Basic Info DOM.");
-                             
-                             const epsGrowthFromDOM = getRateFromDOM('basicInfoDisplay');
-                             
-                             if (epsGrowthFromDOM !== null) {
-                                 epsGrowth = epsGrowthFromDOM;
-                                 console.log(`[FRONTEND] Successfully retrieved EPS Growth from DOM: ${epsGrowth * 100}%`);
-                             } else {
-                                 console.warn("[FRONTEND] Failed to retrieve EPS Growth from DOM. Value remains null/N/A.");
-                             }
-                        } else {
-                             console.log("[FRONTEND] EPS Growth successfully retrieved from Backend result.");
-                        }
-                        // --- END CRITICAL FIX ---
+                throw new Error(`Server responded with status ${response.status}: ${errorBody}`);
+            }
 
-
-                        // --- NOTE: Backend now returns 3 years (3y) of historical data ---
-                        return {  
-                            data: result.historical_data || generateMockData(symbol, 750), // 3 years is approx 750 days
-                            isMock: false,
-                            companyInfo: {  
-                                name: result.name,  
-                                sector: 'N/A',  
-                                industry: 'N/A',  
-                                market_cap: result.market_cap,
-                                summary: result.analysis,  
-                                exchange: 'N/A',
-                                pe_ratio: result.pe_ratio, // Trailing P/E
-                                forward_pe: result.forward_pe, // NEW: Forward P/E from Backend
-                                peg_ratio: result.peg_ratio, // ADDED: PEG Ratio from Backend (Crucial for Growth Stocks)
-                                eps: result.eps,  
-                                dividend_yield: result.dividend_yield,
-                                // --- NEW FIELDS FROM BACKEND ---
-                                return_on_equity: result.return_on_equity,  
-                                net_margin: result.net_margin,
-                                eps_growth: epsGrowth // UPDATED: ใช้ค่าจาก Backend (หรือค่าจาก DOM)
-                                // --- END NEW FIELDS ---
-                            },
-                            news: result.news || [], // Array of news objects
-                            peerComparison: competitorsFromBackend
-                        };
-
-
-                    } else if (response.status === 503 || response.status === 429 || response.status === 500) {
-                        // Retry on Service Unavailable (503), Too Many Requests (429), or general Internal Server Error (500)
-                        const errorText = await response.text();
-                        lastError = new Error(`Server responded with status ${response.status} (Retryable): ${errorText.substring(0, 100)}...`);
-                        
-                        // Continue loop to retry if not max attempt
-                        if (attempt < maxRetries - 1) continue;
-                        
-                        // If max retries reached, throw
-                        throw lastError; 
-
-                    } else {
-                        // Throw non-retryable errors immediately (e.g., 400, 401, 404, etc.)
-                        const contentType = response.headers.get("content-type");
-                        let errorBody = 'No detailed error message.';
-                        if (contentType && contentType.indexOf("application/json") !== -1) {
-                            const errorJson = await response.json().catch(() => ({ error: 'Unknown server error.' }));
-                            errorBody = errorJson.error || errorJson.message || JSON.stringify(errorJson);
-                        } else if (contentType && contentType.indexOf("text/html") !== -1) {
-                            errorBody = await response.text();
-                            errorBody = `HTML Error (Check Backend Logs): ${errorBody.substring(0, 100)}...`; 
-                        }
-                        
-                        throw new Error(`Server responded with status ${response.status}: ${errorBody}`);
-                    }
-                } catch (error) {
-                    // Catch network errors (like Failed to fetch)
-                    if (error.message.includes('Failed to fetch') && attempt < maxRetries - 1) {
-                        lastError = error;
-                        console.warn(`[FRONTEND] Network error: ${error.message}. Retrying...`);
-                        continue; // Retry network error
-                    } else {
-                        // Re-throw if fatal or max retries reached
-                        throw error;
-                    }
-                }
+            const result = await response.json();
+            
+            if (!result.analysis) {  
+                 throw new Error("Backend ไม่ได้ส่งข้อมูลบทวิเคราะห์ที่จำเป็นกลับมา.");
             }
             
-            // Should be unreachable if logic is correct, but as a safeguard
-            throw lastError || new Error("Failed to fetch stock data after all retries.");
+            const competitorsFromBackend = result.competitors || [];
+
+            window.updateConnectionStatus('success');
+
+            // --- CRITICAL FIX: Get EPS Growth from DOM if backend result is null/missing/N/A ---
+            let epsGrowth = result.eps_growth;
+            
+            if (epsGrowth === null || epsGrowth === undefined || isNaN(epsGrowth) || epsGrowth === 0) {
+                 console.warn("EPS Growth is missing/invalid from backend response 2. Attempting to retrieve from Basic Info DOM.");
+                 
+                 // Try to retrieve from the DOM, which was rendered by fetchAndDisplayBasicInfo
+                 const epsGrowthFromDOM = getRateFromDOM('basicInfoDisplay');
+                 
+                 if (epsGrowthFromDOM !== null) {
+                      epsGrowth = epsGrowthFromDOM;
+                      console.log(`[FRONTEND] Successfully retrieved EPS Growth from DOM: ${epsGrowth * 100}%`);
+                 } else {
+                      console.warn("[FRONTEND] Failed to retrieve EPS Growth from DOM. Value remains null/N/A.");
+                 }
+            } else {
+                 console.log("[FRONTEND] EPS Growth successfully retrieved from Backend result.");
+            }
+            // --- END CRITICAL FIX ---
+
+
+            // --- NOTE: Backend now returns 3 years (3y) of historical data ---
+            return {  
+                data: result.historical_data || generateMockData(symbol, 750), // 3 years is approx 750 days
+                isMock: false,
+                companyInfo: {  
+                    name: result.name,  
+                    sector: 'N/A',  
+                    industry: 'N/A',  
+                    market_cap: result.market_cap,
+                    summary: result.analysis,  
+                    exchange: 'N/A',
+                    pe_ratio: result.pe_ratio, // Trailing P/E
+                    forward_pe: result.forward_pe, // NEW: Forward P/E from Backend
+                    peg_ratio: result.peg_ratio, // ADDED: PEG Ratio from Backend (Crucial for Growth Stocks)
+                    eps: result.eps,  
+                    dividend_yield: result.dividend_yield,
+                    // --- NEW FIELDS FROM BACKEND ---
+                    return_on_equity: result.return_on_equity,  
+                    net_margin: result.net_margin,
+                    eps_growth: epsGrowth // UPDATED: ใช้ค่าจาก Backend (หรือค่าจาก DOM)
+                    // --- END NEW FIELDS ---
+                },
+                news: result.news || [], // Array of news objects
+                peerComparison: competitorsFromBackend
+            };
         }
 
         function generateMockData(symbol, days) {
@@ -1044,7 +1000,7 @@
         };
 
 
-        // --- UPDATED: renderChart with Zoom/Pan configuration ---
+        // --- UPDATED: renderChart with Shortened X-Axis Dates ---
         function renderChart(chartId, historicalDataSubset, yMin, yMax, title) {
             const canvas = document.getElementById(chartId);
             if (!canvas) return;
@@ -1132,7 +1088,7 @@
                                     return context.dataset.label;
                                 },
                                 title: function(tooltipItems) {
-                                    // Shorten date format for tooltip if possible, but rely on label for safety
+                                    // Shorten date format for tooltip if possible
                                     const dateStr = tooltipItems[0].label;
                                     try {
                                         const parts = dateStr.split('-');
@@ -1177,7 +1133,20 @@
                                 minRotation: 0,
                                 autoSkip: true,
                                 maxTicksLimit: 8, // Set a low limit to reduce label length
-                                color: '#9CA3AF'
+                                color: '#9CA3AF',
+                                // ** UPDATED: Shortened Date Format Callback **
+                                callback: function(val, index) {
+                                    const dateStr = this.getLabelForValue(val);
+                                    try {
+                                        const parts = dateStr.split('-');
+                                        if (parts.length === 3) {
+                                            // Format to DD/MM/YY (e.g., 15/05/24)
+                                            return `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+                                        }
+                                    } catch (e) {}
+                                    return dateStr;
+                                }
+                                // ** END UPDATED CALLBACK **
                             },
                             grid: {
                                 color: '#374151'
@@ -1253,18 +1222,18 @@
                     const currentBackendHost = CLOUD_RUN_HOST;
                     
                     errorMessage = `ไม่สามารถเชื่อมต่อกับ Python Backend Server ได้ที่ ${currentBackendHost}. 
-                                            โปรดตรวจสอบ: 1) Cloud Run Service กำลังรันอยู่ (Min Instances = 1) 
-                                            2) ในไฟล์ backend_server.py ตัวแปร API_KEY ถูกตั้งค่าเป็น Environment Variable ที่ถูกต้องหรือไม่ 
-                                            3) หากยังคงเกิดข้อผิดพลาดนี้ ให้ตรวจสอบ **Cloud Run Logs** เพื่อหาข้อผิดพลาด (Status 500) ภายใน Server`;
+                                                 โปรดตรวจสอบ: 1) Cloud Run Service กำลังรันอยู่ (Min Instances = 1) 
+                                                 2) ในไฟล์ backend_server.py ตัวแปร API_KEY ถูกตั้งค่าเป็น Environment Variable ที่ถูกต้องหรือไม่ 
+                                                 3) หากยังคงเกิดข้อผิดพลาดนี้ ให้ตรวจสอบ **Cloud Run Logs** เพื่อหาข้อผิดพลาด (Status 500) ภายใน Server`;
                 } else if (error.message.includes('Server responded with status 404')) {
                     errorMessage = `**ไม่พบข้อมูล:** ไม่พบสัญลักษณ์หุ้น '${symbolInput}' หรือข้อมูลย้อนหลังในวันที่ที่ระบุ`;
                 } else if (error.message.includes('Server responded with status 500')) {
                     errorMessage = `**ข้อผิดพลาดภายใน Server (Status 500):** Server Backend (Python) เกิดข้อผิดพลาดรุนแรงและ Crash ทันที (เช่น \`RuntimeError\`). 
-                                             <br>**(โปรดตรวจสอบ Console Log เพื่อดู Error Stacktrace)**
-                                             <br><br>สาเหตุที่พบบ่อย: 1. **Docker/Async Logic:** คุณต้องใช้ Gunicorn Worker Class ที่รองรับ Async (ต้องมี \`--worker-class gevent\` ใน Dockerfile CMD)
-                                             2. **Gemini API Key:** Key ถูกปฏิเสธ (403)
-                                             <br>โปรดตรวจสอบ **Dockerfile CMD** และ **Cloud Run Logs** โดยละเอียด
-                                             <br>Server Error Detail: <pre class="whitespace-pre-wrap text-sm text-red-400 bg-gray-900 p-3 rounded-lg mt-2">${error.message}</pre>`;
+                                                 <br>**(โปรดตรวจสอบ Console Log เพื่อดู Error Stacktrace)**
+                                                 <br><br>สาเหตุที่พบบ่อย: 1. **Docker/Async Logic:** คุณต้องใช้ Gunicorn Worker Class ที่รองรับ Async (ต้องมี \`--worker-class gevent\` ใน Dockerfile CMD)
+                                                 2. **Gemini API Key:** Key ถูกปฏิเสธ (403)
+                                                 <br>โปรดตรวจสอบ **Dockerfile CMD** และ **Cloud Run Logs** โดยละเอียด
+                                                 <br>Server Error Detail: <pre class="whitespace-pre-wrap text-sm text-red-400 bg-gray-900 p-3 rounded-lg mt-2">${error.message}</pre>`;
                 }
 
 
@@ -1278,7 +1247,7 @@
         }
 
         function displayResults(result, targetDateStr) {
-            const { data, isMock, companyInfo, news } = result; 
+            const { data, isMock, companyInfo, news } = result;  
             const analysisOutput = document.getElementById('analysisOutput');
             const symbolInput = document.getElementById('symbolInput').value.trim().toUpperCase();  
             const strongBuyBanner = document.getElementById('strongBuyBanner');
@@ -1286,8 +1255,8 @@
             strongBuyBanner.classList.remove('active'); 
 
             let latestAvailableData = data[data.length - 1];
-            let actualAnalysisDate = latestAvailableData.date; 
-            let targetData = latestAvailableData; 
+            let actualAnalysisDate = latestAvailableData.date;  
+            let targetData = latestAvailableData;  
             
 
             if (!targetData) {
@@ -1363,15 +1332,15 @@
             const aiSummaryText = (companyInfo.summary || 'ไม่พบข้อมูลบทวิเคราะห์จาก AI').trim();
             
             if (aiSummaryText.length > 0) {
-                     // ** IMPROVED: Use CSS 'white-space: pre-wrap' to perfectly preserve paragraph breaks and formatting from the AI summary. **
-                     fundamentalRationaleHTML = `
-                         <div class="mt-4 border-t border-gray-600 pt-3">
-                             <p class="font-bold text-base text-yellow-400 mb-2">📊 บทวิเคราะห์ปัจจัยพื้นฐาน (AI Narrative)</p>
-                             <div class="p-3 bg-gray-800 rounded-lg border border-yellow-700/50 text-sm text-gray-300" style="white-space: pre-wrap;">
-                                 ${aiSummaryText}
-                             </div>
-                         </div>
-                       `;
+                        // ** IMPROVED: Use CSS 'white-space: pre-wrap' to perfectly preserve paragraph breaks and formatting from the AI summary. **
+                        fundamentalRationaleHTML = `
+                            <div class="mt-4 border-t border-gray-600 pt-3">
+                                <p class="font-bold text-base text-yellow-400 mb-2">📊 บทวิเคราะห์ปัจจัยพื้นฐาน (AI Narrative)</p>
+                                <div class="p-3 bg-gray-800 rounded-lg border border-yellow-700/50 text-sm text-gray-300" style="white-space: pre-wrap;">
+                                    ${aiSummaryText}
+                                </div>
+                            </div>
+                        `;
             }
 
             let technicalRationaleHTML = "";
@@ -1449,135 +1418,135 @@
 
 
             const dataAndStatsHTML = `
-                 <!-- Price Data and Core Metrics (Condensed for Mobile) -->
-                 <div class="bg-gray-800 rounded-lg p-3 mb-4 border border-blue-600/50">
-                    <h4 class="text-lg font-bold text-gray-100 mb-2">ราคาและข้อมูลหลัก ณ ${actualAnalysisDate}</h4>
-                    
-                    <p class="text-2xl font-semibold mb-2 text-gray-200 flex items-center justify-between">
-                        ราคาปิด: 
-                        <span class="target-price text-3xl text-blue-400 ml-2">${currentPrice.toFixed(2)}</span>
-                    </p>
-                    <p class="text-base font-semibold ${changeColorClass} mb-3">
-                         ${priceChangeDisplay}
-                    </p>
-
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-400 border-t border-gray-700 pt-3">
-                        <div><span class="font-semibold text-gray-400">เปิด/สูง/ต่ำ:</span> ${targetData.open ? targetData.open.toFixed(2) : 'N/A'} / ${targetData.high ? targetData.high.toFixed(2) : 'N/A'} / ${targetData.low ? targetData.low.toFixed(2) : 'N/A'}</div> 
-                        <div><span class="font-semibold text-gray-400">ปริมาณการซื้อขาย:</span> ${targetData.volume ? formatMarketCap(targetData.volume) : 'N/A'}</div> 
-                        <div><span class="font-semibold text-gray-400">มูลค่าตลาด:</span> ${formatMarketCap(companyInfo.market_cap)}</div> 
-                        <div><span class="font-semibold text-gray-400">อุตสาหกรรม/หมวดธุรกิจ:</span> ${companyInfo.sector || 'N/A'} / ${companyInfo.industry || 'N/A'}</div> 
-                    </div>
-                </div>
-
-
-                <!-- Analysis Card: Signal and Targets -->
-                <div class="bg-gray-800 rounded-lg p-4 border border-green-600/50 mb-4">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4">สรุปสัญญาณซื้อขาย</h3>
-                    
-                    <div class="flex items-center justify-between mb-3 border-b border-gray-700 pb-3">
-                        <p class="text-lg text-gray-200">สัญญาณ: <span id="tradeSignal" class="signal-box ${signalClass}">${currentSignal}</span></p>
-                        <p class="text-sm font-semibold text-gray-200 text-right">ความมั่นใจแนวโน้ม: 
-                            <span class="strength-indicator ${trendStrength.colorClass}">${trendStrength.strength}</span>
+                    <!-- Price Data and Core Metrics (Condensed for Mobile) -->
+                    <div class="bg-gray-800 rounded-lg p-3 mb-4 border border-blue-600/50">
+                        <h4 class="text-lg font-bold text-gray-100 mb-2">ราคาและข้อมูลหลัก ณ ${actualAnalysisDate}</h4>
+                        
+                        <p class="text-2xl font-semibold mb-2 text-gray-200 flex items-center justify-between">
+                            ราคาปิด: 
+                            <span class="target-price text-3xl text-blue-400 ml-2">${currentPrice.toFixed(2)}</span>
                         </p>
-                    </div>
-                    
-                    <!-- Targets/Stop Loss (Simplified for Mobile) -->
-                    <div class="grid grid-cols-3 gap-3 text-center">
-                        <div class="p-2 bg-gray-900 rounded-lg border border-blue-700">
-                            <p class="text-xs font-medium text-blue-400">ราคาเป้าหมาย (ซื้อ)</p> 
-                            <p id="buyTarget" class="target-price text-lg">${technicalAnalysis.buyTarget}</p>
-                            <p class="text-xs text-gray-500">(แนวรับ)</p>
-                        </div>
-                        <div class="p-2 bg-gray-900 rounded-lg border border-red-700">
-                            <p class="text-xs font-medium text-red-400">จุดตัดขาดทุน</p> 
-                            <p id="stopLoss" class="target-price text-lg text-red-400">${technicalAnalysis.stopLoss}</p>
-                            <p class="text-xs text-gray-500">(Lower BB / EMA 50)</p>
-                        </div>
-                        <div class="p-2 bg-gray-900 rounded-lg border border-green-700">
-                            <p class="text-xs font-medium text-green-400">ราคาเป้าหมาย (ขาย)</p> 
-                            <p id="sellTarget" class="target-price text-lg text-green-400">${technicalAnalysis.sellTarget}</p>
-                            <p class="text-xs text-gray-500">(แนวต้าน)</p>
+                        <p class="text-base font-semibold ${changeColorClass} mb-3">
+                             ${priceChangeDisplay}
+                        </p>
+
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-400 border-t border-gray-700 pt-3">
+                            <div><span class="font-semibold text-gray-400">เปิด/สูง/ต่ำ:</span> ${targetData.open ? targetData.open.toFixed(2) : 'N/A'} / ${targetData.high ? targetData.high.toFixed(2) : 'N/A'} / ${targetData.low ? targetData.low.toFixed(2) : 'N/A'}</div> 
+                            <div><span class="font-semibold text-gray-400">ปริมาณการซื้อขาย:</span> ${targetData.volume ? formatMarketCap(targetData.volume) : 'N/A'}</div> 
+                            <div><span class="font-semibold text-gray-400">มูลค่าตลาด:</span> ${formatMarketCap(companyInfo.market_cap)}</div> 
+                            <div><span class="font-semibold text-gray-400">อุตสาหกรรม/หมวดธุรกิจ:</span> ${companyInfo.sector || 'N/A'} / ${companyInfo.industry || 'N/A'}</div> 
                         </div>
                     </div>
 
-                    <div class="mt-4">
-                         ${finalRationaleContent}
-                    </div>
 
-                </div>
-
-                <!-- Valuation and Ratios -->
-                <div class="bg-gray-800 rounded-lg p-4 border border-yellow-600/50 mb-4">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4">มูลค่า และ ตัวชี้วัด</h3> 
-
-                    <div class="grid grid-cols-2 gap-4 text-center">
-                        <!-- Valuation -->
-                        <div class="bg-gray-900 p-2 rounded-lg">
-                            <span class="block text-xs font-semibold text-gray-400">มูลค่า:</span> 
-                            <span class="text-lg ${valuation.class} font-bold mt-1">(${valuation.value.split(' - ')[0]})</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-500">${valuation.value.includes('-') ? `(${valuation.value.split(' - ')[1]})` : ''}</span>
+                    <!-- Analysis Card: Signal and Targets -->
+                    <div class="bg-gray-800 rounded-lg p-4 border border-green-600/50 mb-4">
+                        <h3 class="text-xl font-bold text-gray-100 mb-4">สรุปสัญญาณซื้อขาย</h3>
+                        
+                        <div class="flex items-center justify-between mb-3 border-b border-gray-700 pb-3">
+                            <p class="text-lg text-gray-200">สัญญาณ: <span id="tradeSignal" class="signal-box ${signalClass}">${currentSignal}</span></p>
+                            <p class="text-sm font-semibold text-gray-200 text-right">ความมั่นใจแนวโน้ม: 
+                                <span class="strength-indicator ${trendStrength.colorClass}">${trendStrength.strength}</span>
+                            </p>
                         </div>
-                        <!-- PEG Ratio -->
-                        <div class="bg-gray-900 p-2 rounded-lg">
-                            <span class="block text-xs font-semibold text-gray-400">PEG Ratio</span>
-                            <span class="text-xl text-yellow-400 font-bold">${pegDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-500">(เน้นการเติบโต)</span> 
-                        </div>
-                         <!-- Forward P/E -->
-                        <div class="bg-gray-900 p-2 rounded-lg">
-                            <span class="block text-xs font-semibold text-gray-400">P/E (คาดการณ์)</span> 
-                            <span class="text-xl text-green-400 font-bold">${forwardPEDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-500">(อัตราส่วนราคาต่อกำไร)</span> 
-                        </div>
-                         <!-- EPS Growth -->
-                        <div class="bg-gray-900 p-2 rounded-lg">
-                            <span class="block text-xs font-semibold text-gray-400">การเติบโตของ EPS (YoY)</span> 
-                            <span class="text-xl text-yellow-400 font-bold">${epsGrowthDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-500">(ประมาณการ)</span> 
-                        </div>
-                        <!-- ROE -->
-                        <div class="bg-gray-900 p-2 rounded-lg">
-                            <span class="block text-xs font-semibold text-gray-400">ROE</span>
-                            <span class="text-xl text-yellow-400 font-bold">${roeDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-500">(ผลตอบแทนต่อทุน)</span>
-                        </div>
-                        <!-- Net Margin -->
-                        <div class="bg-gray-900 p-2 rounded-lg">
-                            <span class="block text-xs font-semibold text-gray-400">อัตรากำไรสุทธิ</span> 
-                            <span class="text-xl text-yellow-400 font-bold">${netMarginDisplay}</span>
-                            <span class="block text-xs font-semibold mt-1 text-gray-500">(Net Margin)</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chart Container -->
-                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-700 pb-2">กราฟราคาและแนวโน้ม</h3>
-                    
-                    <!-- Chart 1: 1 YEAR -->
-                    <div class="mb-6">
-                        <div class="chart-container-wrapper">
-                            <div class="chart-container-inner" style="height: 300px;">
-                                <canvas id="stockChart1Y"></canvas>
+                        
+                        <!-- Targets/Stop Loss (Simplified for Mobile) -->
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <div class="p-2 bg-gray-900 rounded-lg border border-blue-700">
+                                <p class="text-xs font-medium text-blue-400">ราคาเป้าหมาย (ซื้อ)</p> 
+                                <p id="buyTarget" class="target-price text-lg">${technicalAnalysis.buyTarget}</p>
+                                <p class="text-xs text-gray-500">(แนวรับ)</p>
+                            </div>
+                            <div class="p-2 bg-gray-900 rounded-lg border border-red-700">
+                                <p class="text-xs font-medium text-red-400">จุดตัดขาดทุน</p> 
+                                <p id="stopLoss" class="target-price text-lg text-red-400">${technicalAnalysis.stopLoss}</p>
+                                <p class="text-xs text-gray-500">(Lower BB / EMA 50)</p>
+                            </div>
+                            <div class="p-2 bg-gray-900 rounded-lg border border-green-700">
+                                <p class="text-xs font-medium text-green-400">ราคาเป้าหมาย (ขาย)</p> 
+                                <p id="sellTarget" class="target-price text-lg text-green-400">${technicalAnalysis.sellTarget}</p>
+                                <p class="text-xs text-gray-500">(แนวต้าน)</p>
                             </div>
                         </div>
-                        <div class="text-center">
-                            <button onclick="window.resetZoom('stockChart1Y')" class="reset-button text-xs">รีเซ็ต Zoom 1 ปี</button>
+
+                        <div class="mt-4">
+                             ${finalRationaleContent}
+                        </div>
+
+                    </div>
+
+                    <!-- Valuation and Ratios -->
+                    <div class="bg-gray-800 rounded-lg p-4 border border-yellow-600/50 mb-4">
+                        <h3 class="text-xl font-bold text-gray-100 mb-4">มูลค่า และ ตัวชี้วัด</h3> 
+
+                        <div class="grid grid-cols-2 gap-4 text-center">
+                            <!-- Valuation -->
+                            <div class="bg-gray-900 p-2 rounded-lg">
+                                <span class="block text-xs font-semibold text-gray-400">มูลค่า:</span> 
+                                <span class="text-lg ${valuation.class} font-bold mt-1">(${valuation.value.split(' - ')[0]})</span>
+                                <span class="block text-xs font-semibold mt-1 text-gray-500">${valuation.value.includes('-') ? `(${valuation.value.split(' - ')[1]})` : ''}</span>
+                            </div>
+                            <!-- PEG Ratio -->
+                            <div class="bg-gray-900 p-2 rounded-lg">
+                                <span class="block text-xs font-semibold text-gray-400">PEG Ratio</span>
+                                <span class="text-xl text-yellow-400 font-bold">${pegDisplay}</span>
+                                <span class="block text-xs font-semibold mt-1 text-gray-500">(เน้นการเติบโต)</span> 
+                            </div>
+                             <!-- Forward P/E -->
+                            <div class="bg-gray-900 p-2 rounded-lg">
+                                <span class="block text-xs font-semibold text-gray-400">P/E (คาดการณ์)</span> 
+                                <span class="text-xl text-green-400 font-bold">${forwardPEDisplay}</span>
+                                <span class="block text-xs font-semibold mt-1 text-gray-500">(อัตราส่วนราคาต่อกำไร)</span> 
+                            </div>
+                             <!-- EPS Growth -->
+                            <div class="bg-gray-900 p-2 rounded-lg">
+                                <span class="block text-xs font-semibold text-gray-400">การเติบโตของ EPS (YoY)</span> 
+                                <span class="text-xl text-yellow-400 font-bold">${epsGrowthDisplay}</span>
+                                <span class="block text-xs font-semibold mt-1 text-gray-500">(ประมาณการ)</span> 
+                            </div>
+                            <!-- ROE -->
+                            <div class="bg-gray-900 p-2 rounded-lg">
+                                <span class="block text-xs font-semibold text-gray-400">ROE</span>
+                                <span class="text-xl text-yellow-400 font-bold">${roeDisplay}</span>
+                                <span class="block text-xs font-semibold mt-1 text-gray-500">(ผลตอบแทนต่อทุน)</span>
+                            </div>
+                            <!-- Net Margin -->
+                            <div class="bg-gray-900 p-2 rounded-lg">
+                                <span class="block text-xs font-semibold text-gray-400">อัตรากำไรสุทธิ</span> 
+                                <span class="text-xl text-yellow-400 font-bold">${netMarginDisplay}</span>
+                                <span class="block text-xs font-semibold mt-1 text-gray-500">(Net Margin)</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Chart 2: 3 YEARS -->
-                    <div>
-                        <div class="chart-container-wrapper">
-                            <div class="chart-container-inner" style="height: 300px;">
-                                <canvas id="stockChart3Y"></canvas>
+                    <!-- Chart Container -->
+                    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                        <h3 class="text-xl font-bold text-gray-100 mb-4 border-b border-gray-700 pb-2">กราฟราคาและแนวโน้ม</h3>
+                        
+                        <!-- Chart 1: 1 YEAR -->
+                        <div class="mb-6">
+                            <div class="chart-container-wrapper">
+                                <div class="chart-container-inner" style="height: 300px;">
+                                    <canvas id="stockChart1Y"></canvas>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <button onclick="window.resetZoom('stockChart1Y')" class="reset-button text-xs">รีเซ็ต Zoom 1 ปี</button>
                             </div>
                         </div>
-                        <div class="text-center">
-                            <button onclick="window.resetZoom('stockChart3Y')" class="reset-button text-xs">รีเซ็ต Zoom 3 ปี</button>
+
+                        <!-- Chart 2: 3 YEARS -->
+                        <div>
+                            <div class="chart-container-wrapper">
+                                <div class="chart-container-inner" style="height: 300px;">
+                                    <canvas id="stockChart3Y"></canvas>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <button onclick="window.resetZoom('stockChart3Y')" class="reset-button text-xs">รีเซ็ต Zoom 3 ปี</button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
             `;
             
